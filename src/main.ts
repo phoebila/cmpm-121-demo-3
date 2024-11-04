@@ -1,4 +1,10 @@
-import * as L from 'leaflet';
+// Example: Fetch from a CDN that provides Leaflet in ES module format
+import 'https://unpkg.com/leaflet@1.9.3/dist/leaflet.js';
+
+// Temporary manual declaration if needed
+// Deno does not natively support the Node @types/* flow
+declare var L: any; // This can act as a stop-gap to get around the type error
+
 
 // Entry point
 document.addEventListener('DOMContentLoaded', () => {

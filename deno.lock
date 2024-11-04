@@ -515,6 +515,9 @@
       "integrity": "sha512-bLQOjaX/ADgQ20isPJRvF0iRUHIxVhYvr53Of7wGcWlO2jvtUlH5m87DsmulFVxRpNLOnI4tB6p/oh8D7kpn9Q=="
     }
   },
+  "remote": {
+    "https://unpkg.com/leaflet@1.9.3/dist/leaflet.js": "5819285cec137b229c94e1ee5ad73e8b6b84345a4367d60f75fe477fe0fb7b03"
+  },
   "workspace": {
     "dependencies": [
       "npm:geojson@0.5",
