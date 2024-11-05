@@ -1,4 +1,9 @@
+// main.ts
+
+// thanks Brace and ChatGPT for help !!!!
+// got rid of reset button and tracking player location
 document.addEventListener('DOMContentLoaded', () => {
+    // basic setup for app -----------------------------------
     const appContainer = document.createElement('div');
     appContainer.id = 'app';
     document.body.appendChild(appContainer);
@@ -18,15 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const controlPanel = document.createElement('div');
     controlPanel.id = 'control-panel';
     headingContainer.appendChild(controlPanel);
-
-    const createButton = (id: string, text: string, onClick: () => void) => {
-        const btn = document.createElement('button');
-        btn.id = id;
-        btn.textContent = text;
-        btn.style.margin = '5px';
-        btn.addEventListener('click', onClick);
-        return btn;
-    };
 
     let markers: L.Marker[] = [];
     let inventory: { [key: string]: number } = {};
@@ -60,11 +56,13 @@ document.addEventListener('DOMContentLoaded', () => {
     inventoryTitle.id = 'inventory-title';
     inventoryContainer.appendChild(inventoryTitle);
 
+    // Leaflet map setup -----------------------------------
     const map = L.map(mapElement).setView([latitudeStart, longitudeStart], 17);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
+    // random seed func for cache and coin generation -----------------------------------
     class SeededRandom {
         constructor(private seed: number) {}
         next(): number {
@@ -75,6 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const randomGen = new SeededRandom(12345);
 
+    // interfaces for items -----------------------------------
     interface Coin {
         type: string;
         count: number;
@@ -94,6 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
         j: number;
     }
 
+    // flyweight pattern for grid cells -----------------------------------
     class FlyweightFactory {
         private static gridCellCache: { [key: string]: GridCell } = {};
 
@@ -108,6 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // coin setup -----------------------------------
     const coinTypes = ['Copper', 'Silver', 'Gold'];
 
     const generateCoins = (gridCell: GridCell): Coin[] => {
@@ -119,6 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }));
     };
 
+    // creating the cache grid -----------------------------------
     const createCacheGrid = (center: [number, number]): Cache[] => {
         const caches: Cache[] = [];
         for (let i = -gridSteps; i <= gridSteps; i++) {
@@ -144,6 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tooltipAnchor: [0, -30]
     });
 
+    // ui for inventory -----------------------------------
     const updateInventoryDisplay = () => {
         const inventoryTitle = document.getElementById('inventory-title');
         if (inventoryTitle) {
@@ -155,11 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const clearMarkers = () => {
-        markers.forEach(marker => map.removeLayer(marker));
-        markers = [];
-    };
-
+    // main func, initialize markers -----------------------------------
     const initializeMarkers = () => {
         const playerMarker = L.marker([latitudeStart, longitudeStart], { icon: playerIcon }).addTo(map)
             .bindTooltip('Player Location', { permanent: true, direction: 'top' });
@@ -222,6 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // save and load game state -----------------------------------
     const saveGameState = (inventory: { [key: string]: number }, caches: Cache[]) => {
         localStorage.setItem('inventory', JSON.stringify(inventory));
         localStorage.setItem('caches', JSON.stringify(caches));
