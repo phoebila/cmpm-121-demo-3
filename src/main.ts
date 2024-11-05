@@ -72,10 +72,15 @@ document.addEventListener('DOMContentLoaded', () => {
     directionPanel.id = 'direction-panel';
     controlPanel.appendChild(directionPanel);
 
-    directionPanel.appendChild(createDirectionButton('north', '⬆️', () => movePlayer(0, 1)));
-    directionPanel.appendChild(createDirectionButton('west', '⬅️', () => movePlayer(-1, 0)));
-    directionPanel.appendChild(createDirectionButton('south', '⬇️', () => movePlayer(0, -1)));
-    directionPanel.appendChild(createDirectionButton('east', '➡️', () => movePlayer(1, 0)));
+    // Movement increment constant
+    const movementIncrement = 1; // Adjust this value for desired movement speed
+
+    // Add directional buttons to the control panel -----------------------------------
+    // Use movementIncrement for more noticeable movement
+    directionPanel.appendChild(createDirectionButton('north', '⬆️', () => movePlayer(0, movementIncrement)));
+    directionPanel.appendChild(createDirectionButton('west', '⬅️', () => movePlayer(-movementIncrement, 0)));
+    directionPanel.appendChild(createDirectionButton('south', '⬇️', () => movePlayer(0, -movementIncrement)));
+    directionPanel.appendChild(createDirectionButton('east', '➡️', () => movePlayer(movementIncrement, 0)));
 
     const cacheVisibilityRadius = 0.002; // Define a radius for cache visibility (adjust as needed)
     // Function to clear all existing markers from the map
@@ -93,6 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeMarkers(); // Reinitialize markers on the map
     };
 
+    
     // Update the movePlayer function to regenerate caches when the player moves
     const movePlayer = (deltaX: number, deltaY: number) => {
         latitudeStart += deltaY * cellSize; // Adjust latitude for north/south movement
