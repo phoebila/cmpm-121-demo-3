@@ -1,12 +1,12 @@
 // main.ts
 
-// Thanks Brace !!!!
+// Thanks Brace!!
 document.addEventListener('DOMContentLoaded', () => {
-    // basic html structure --------------------
     const appContainer = document.createElement('div');
     appContainer.id = 'app';
     document.body.appendChild(appContainer);
 
+    // Create a heading container ---------------------------------------------
     const headingContainer = document.createElement('div');
     headingContainer.id = 'heading-container';
     headingContainer.style.backgroundColor = '#4A90E2'; // Blue color
@@ -19,11 +19,11 @@ document.addEventListener('DOMContentLoaded', () => {
     title.textContent = 'Geocoin Carrier';
     headingContainer.appendChild(title);
 
+    // Create a control panel within the heading ------------------------------
     const controlPanel = document.createElement('div');
     controlPanel.id = 'control-panel';
     headingContainer.appendChild(controlPanel);
 
-    // button functions --------------------
     const createButton = (id: string, text: string, onClick: () => void) => {
         const btn = document.createElement('button');
         btn.id = id;
@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let markers: L.Marker[] = [];
 
-// resetState function, still buggy ---------------------
+    // still buggy as hell, trying to get the reset button to work, fix later -------------------
     const resetState = () => {
         clearMarkers(); // Remove all markers from map
         inventory = {};  // Reset inventory
@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     controlPanel.appendChild(createButton('reset-state', 'Reset State', resetState));
 
-    // Map/inventory container --------------------
+    // Map container ---------------------------------------------------------
     const mapContainer = document.createElement('div');
     mapContainer.id = 'map-container';
     mapContainer.style.margin = '10px 0';
@@ -66,6 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
     mapElement.style.width = '100%';
     mapContainer.appendChild(mapElement);
 
+    // Inventory container ---------------------------------------------------
     const inventoryContainer = document.createElement('div');
     inventoryContainer.id = 'inventory-container';
     inventoryContainer.style.backgroundColor = '#FFAC45'; // Orange color
@@ -77,6 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
     inventoryTitle.id = 'inventory-title';
     inventoryContainer.appendChild(inventoryTitle);
 
+    // Map Setup -------------------------------------------------------------
     const latitudeStart = 36.9895;
     const longitudeStart = -122.0628;
     const cellSize = 0.0001;
@@ -89,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    // Random number generator for caches
+    // rand function to seed caches and coins --------------------------------
     class SeededRandom {
         constructor(private seed: number) {}
         next(): number {
@@ -100,7 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const randomGen = new SeededRandom(12345);
 
-    // coin and cache interfaces --------------------
     interface Coin {
         type: string;
         count: number;
@@ -110,12 +111,33 @@ document.addEventListener('DOMContentLoaded', () => {
         lat: number;
         lng: number;
         coins: Coin[];
-        gridCell: { i: number; j: number };
+        gridCell: GridCell;
+    }
+
+    interface GridCell {
+        i: number;
+        j: number;
+    }
+
+    // implement flyweight pattern to reduce memory usage ---------------------
+    class FlyweightFactory {
+        private static gridCellCache: { [key: string]: GridCell } = {};
+    
+        public static getGridCell(lat: number, lng: number): GridCell {
+            const i = Math.floor(lat / cellSize);
+            const j = Math.floor(lng / cellSize);
+            const key = `${i}-${j}`;
+    
+            if (!this.gridCellCache[key]) {
+                this.gridCellCache[key] = { i, j };
+                console.log(`Creating new grid cell for key: ${key}`);  // Log for diagnostic
+            }
+            return this.gridCellCache[key];
+        }
     }
 
     const coinTypes = ['Copper', 'Silver', 'Gold'];
 
-    // generateCoins and calculateGridCell functions --------------------
     const generateCoins = (): Coin[] => {
         return coinTypes.map(coinType => ({
             type: coinType,
@@ -123,13 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }));
     };
 
-    const calculateGridCell = (lat: number, lng: number): { i: number; j: number } => {
-        const i = Math.floor(lat / cellSize);
-        const j = Math.floor(lng / cellSize);
-        return { i, j };
-    };
-
-    // createCacheGrid function --------------------
     const createCacheGrid = (center: [number, number]): Cache[] => {
         const caches: Cache[] = [];
         for (let i = -gridSteps; i <= gridSteps; i++) {
@@ -138,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const lat = center[0] + (i * cellSize);
                     const lng = center[1] + (j * cellSize);
                     const coins = generateCoins();
-                    const gridCell = calculateGridCell(lat, lng);
+                    const gridCell = FlyweightFactory.getGridCell(lat, lng);
                     caches.push({ lat, lng, coins, gridCell });
                 }
             }
@@ -155,7 +170,6 @@ document.addEventListener('DOMContentLoaded', () => {
         tooltipAnchor: [0, -30]
     });
 
-    // inventory and marker functions --------------------
     let inventory: { [key: string]: number } = {};
 
     const updateInventoryDisplay = () => {
@@ -174,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
         markers = [];
     };
 
-    // main meat and taters, initializes the caches, markers, and popups --------------------
+    // main meat and taters, initialize markers -------------------------------
     const initializeMarkers = () => {
         const playerMarker = L.marker([latitudeStart, longitudeStart], { icon: playerIcon }).addTo(map)
             .bindTooltip('Player Location', { permanent: true, direction: 'top' });
@@ -228,7 +242,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // saveGameState and loadGameState functions --------------------
     const saveGameState = (inventory: { [key: string]: number }, caches: Cache[]) => {
         localStorage.setItem('geocoinGameState', JSON.stringify({ inventory, caches }));
     };
