@@ -29,22 +29,12 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     let markers: L.Marker[] = [];
-
-    const resetState = () => {
-        clearMarkers();
-        inventory = {};
-        caches = createCacheGrid([latitudeStart, longitudeStart]);
-        initializeMarkers();
-        saveGameState(inventory, caches);
-        updateInventoryDisplay();
-        console.log('State has been reset');
-    };
-
-    controlPanel.appendChild(createButton('toggle-tracking', 'Toggle Tracking', () => {
-        console.log('Toggling real-time position tracking');
-    }));
-
-    controlPanel.appendChild(createButton('reset-state', 'Reset State', resetState));
+    let inventory: { [key: string]: number } = {};
+    const latitudeStart = 36.9895;
+    const longitudeStart = -122.0628;
+    const cellSize = 0.0001;
+    const gridSteps = 8;
+    const cacheProbability = 0.1;
 
     const mapContainer = document.createElement('div');
     mapContainer.id = 'map-container';
@@ -70,14 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     inventoryTitle.id = 'inventory-title';
     inventoryContainer.appendChild(inventoryTitle);
 
-    const latitudeStart = 36.9895;
-    const longitudeStart = -122.0628;
-    const cellSize = 0.0001;
-    const gridSteps = 8;
-    const cacheProbability = 0.1;
-
     const map = L.map(mapElement).setView([latitudeStart, longitudeStart], 17);
-
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
@@ -96,14 +79,14 @@ document.addEventListener('DOMContentLoaded', () => {
         type: string;
         count: number;
         serial: number;
-        origin: { i: number; j: number };
+        gridCell: GridCell; // Add gridCell property to Coin
     }
 
     interface Cache {
         lat: number;
         lng: number;
         coins: Coin[];
-        gridCell: GridCell | null;
+        gridCell: GridCell;
     }
 
     interface GridCell {
@@ -114,7 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
     class FlyweightFactory {
         private static gridCellCache: { [key: string]: GridCell } = {};
 
-        public static getGridCell(lat: number, lng: number): GridCell | null {
+        public static getGridCell(lat: number, lng: number): GridCell {
             const i = Math.floor(lat / cellSize);
             const j = Math.floor(lng / cellSize);
             const key = `${i}-${j}`;
@@ -127,16 +110,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const coinTypes = ['Copper', 'Silver', 'Gold'];
 
-    const generateCoins = (gridCell: GridCell | null): Coin[] => {
-        if (!gridCell) {
-            console.warn("generateCoins called with undefined gridCell");
-            return [];
-        }
+    const generateCoins = (gridCell: GridCell): Coin[] => {
         return coinTypes.map((coinType, serial) => ({
             type: coinType,
             count: Math.floor(randomGen.next() * 9) + 1,
-            serial,
-            origin: { i: gridCell.i, j: gridCell.j }
+            serial: serial,
+            gridCell: gridCell // Ensure gridCell is included
         }));
     };
 
@@ -148,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const lat = center[0] + (i * cellSize);
                     const lng = center[1] + (j * cellSize);
                     const gridCell = FlyweightFactory.getGridCell(lat, lng);
-                    const coins = gridCell ? generateCoins(gridCell) : [];
+                    const coins = generateCoins(gridCell);
                     caches.push({ lat, lng, coins, gridCell });
                 }
             }
@@ -164,8 +143,6 @@ document.addEventListener('DOMContentLoaded', () => {
         iconAnchor: [16, 32],
         tooltipAnchor: [0, -30]
     });
-
-    let inventory: { [key: string]: number } = {};
 
     const updateInventoryDisplay = () => {
         const inventoryTitle = document.getElementById('inventory-title');
@@ -183,17 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
         markers = [];
     };
 
-    const updatePopup = (cache: Cache, marker: L.Marker, index: number) => {
-        const { i, j } = cache.gridCell || { i: 0, j: 0 }; // Fallback to 0 if gridCell is undefined
-        const coinDescriptions = cache.coins.map(coin =>
-            `${coin.type}: ${coin.count} (Serial: ${coin.serial}, Origin: {i: ${coin.origin.i}, j: ${coin.origin.j}})`).join('<br>');
-        let popupContent = `Cache location:<br>${coinDescriptions ? coinDescriptions : '0 coins'}<br>`;
-        popupContent += `Grid Cell: {i: ${i}, j: ${j}}<br>`;
-        popupContent += `<button id="collect-btn-${index}">Collect Coins</button>`;
-        popupContent += `<button id="deposit-btn-${index}">Deposit Coins</button>`;
-        marker.bindPopup(popupContent);
-    };
-
     const initializeMarkers = () => {
         const playerMarker = L.marker([latitudeStart, longitudeStart], { icon: playerIcon }).addTo(map)
             .bindTooltip('Player Location', { permanent: true, direction: 'top' });
@@ -204,7 +170,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const marker = L.marker([cache.lat, cache.lng]).addTo(map);
             markers.push(marker);
 
-            updatePopup(cache, marker, index);
+            const updatePopup = () => {
+                const gridCell = cache.gridCell; // Use cache.gridCell which is guaranteed to exist
+                if (gridCell) {
+                    const { i, j } = gridCell; // Safely extract i and j
+                    const coinDescriptions = cache.coins.map(coin => {
+                        // Ensure coin.gridCell is valid before accessing its properties
+                        const coinGridCell = coin.gridCell;
+                        return coinGridCell
+                            ? `${coin.type}: ${coin.count} (ID: ${coinGridCell.i}:${coinGridCell.j}#${coin.serial})`
+                            : `${coin.type}: ${coin.count} (ID: N/A)`;
+                    }).join('<br>');
+                    let popupContent = `Cache location:<br>${coinDescriptions ? coinDescriptions : '0 coins'}<br>`;
+                    popupContent += `Grid Cell: {i: ${i}, j: ${j}}<br>`;
+                    popupContent += `<button id="collect-btn-${index}">Collect Coins</button>`;
+                    popupContent += `<button id="deposit-btn-${index}">Deposit Coins</button>`;
+                    marker.bindPopup(popupContent);
+                }
+            };
+
+            updatePopup();
 
             marker.on('popupopen', () => {
                 document.getElementById(`collect-btn-${index}`)?.addEventListener('click', () => {
@@ -213,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     cache.coins = [];
                     updateInventoryDisplay();
-                    updatePopup(cache, marker, index);
+                    updatePopup();
                     saveGameState(inventory, caches);
                 });
                 document.getElementById(`deposit-btn-${index}`)?.addEventListener('click', () => {
@@ -222,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (inventoryCount > 0) {
                             let cacheCoin = cache.coins.find(coin => coin.type === coinType);
                             if (!cacheCoin) {
-                                cacheCoin = { type: coinType, count: 0, serial: -1, origin: { i: cache.gridCell?.i ?? 0, j: cache.gridCell?.j ?? 0 } };
+                                cacheCoin = { type: coinType, count: 0, serial: -1, gridCell: cache.gridCell }; // Ensure gridCell is stored
                                 cache.coins.push(cacheCoin);
                             }
                             cacheCoin.count += inventoryCount;
@@ -230,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                     updateInventoryDisplay();
-                    updatePopup(cache, marker, index);
+                    updatePopup();
                     saveGameState(inventory, caches);
                 });
             });
@@ -245,8 +230,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadGameState = () => {
         const savedInventory = localStorage.getItem('inventory');
         const savedCaches = localStorage.getItem('caches');
-        if (savedInventory) inventory = JSON.parse(savedInventory);
-        if (savedCaches) caches = JSON.parse(savedCaches);
+        if (savedInventory) {
+            inventory = JSON.parse(savedInventory);
+        }
+        if (savedCaches) {
+            caches = JSON.parse(savedCaches);
+            caches.forEach(cache => {
+                cache.coins = cache.coins.map((coin: any) => ({
+                    ...coin,
+                    gridCell: FlyweightFactory.getGridCell(cache.lat, cache.lng) // Ensure gridCell is re-assigned
+                }));
+            });
+        }
     };
 
     loadGameState();
