@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return btn;
     };
 
-    // Add directional buttons to the control panel
+    // Add directional buttons to the control panel -----------------------------------
     const directionPanel = document.createElement('div');
     directionPanel.id = 'direction-panel';
     controlPanel.appendChild(directionPanel);
@@ -84,11 +84,12 @@ document.addEventListener('DOMContentLoaded', () => {
         markers = [];
     };
 
-    // Function to regenerate caches based on the player's position
+    // Update the regenerateCaches function to save the states before regenerating
     const regenerateCaches = () => {
-        // Clear existing markers and caches
+        saveCacheStates(); // Save the current states of caches before regenerating
         clearMarkers();
         caches = createCacheGrid([latitudeStart, longitudeStart]); // Regenerate caches based on new position
+        restoreCacheStates(); // Restore the states of caches
         initializeMarkers(); // Reinitialize markers on the map
     };
 
@@ -104,6 +105,48 @@ document.addEventListener('DOMContentLoaded', () => {
         regenerateCaches();
 
         console.log(`Moved to: ${latitudeStart}, ${longitudeStart}`);
+    };
+
+    // MEMENTO PATTERN -----------------------------------
+    class CacheMemento {
+        constructor(public lat: number, public lng: number, public coins: Coin[]) {}
+    }
+    
+    class CacheOriginator {
+        constructor(private cache: Cache) {}
+    
+        createMemento(): CacheMemento {
+            return new CacheMemento(this.cache.lat, this.cache.lng, this.cache.coins.map(coin => ({ ...coin })));
+        }
+    
+        restore(memento: CacheMemento) {
+            this.cache.lat = memento.lat;
+            this.cache.lng = memento.lng;
+            this.cache.coins = memento.coins;
+        }
+    }
+
+    let cacheMementos: { [key: string]: CacheMemento } = {};
+
+    // Function to save the state of caches
+    const saveCacheStates = () => {
+        caches.forEach((cache) => {
+            const key = `${cache.gridCell.i}-${cache.gridCell.j}`;
+            const originator = new CacheOriginator(cache);
+            cacheMementos[key] = originator.createMemento();
+        });
+    };
+
+    // Function to restore cache states
+    const restoreCacheStates = () => {
+        caches.forEach((cache) => {
+            const key = `${cache.gridCell.i}-${cache.gridCell.j}`;
+            const memento = cacheMementos[key];
+            if (memento) {
+                const originator = new CacheOriginator(cache);
+                originator.restore(memento);
+            }
+        });
     };
 
     // Leaflet map setup -----------------------------------
@@ -177,12 +220,24 @@ document.addEventListener('DOMContentLoaded', () => {
             for (let j = -gridSteps; j <= gridSteps; j++) {
                 const lat = center[0] + (i * cellSize);
                 const lng = center[1] + (j * cellSize);
-                // Check if the cache is within the visibility radius
                 const distance = Math.sqrt(Math.pow(lat - latitudeStart, 2) + Math.pow(lng - longitudeStart, 2));
                 if (distance <= cacheVisibilityRadius && randomGen.next() < cacheProbability) {
                     const gridCell = FlyweightFactory.getGridCell(lat, lng);
-                    const coins = generateCoins(gridCell);
-                    caches.push({ lat, lng, coins, gridCell });
+                    // Check if the cache already exists to restore its state
+                    const existingCache = caches.find(c => c.gridCell.i === gridCell.i && c.gridCell.j === gridCell.j);
+                    if (existingCache) {
+                        // Restore state from memento if exists
+                        const memento = cacheMementos[`${gridCell.i}-${gridCell.j}`];
+                        if (memento) {
+                            existingCache.lat = memento.lat;
+                            existingCache.lng = memento.lng;
+                            existingCache.coins = memento.coins;
+                        }
+                        caches.push(existingCache);
+                    } else {
+                        const coins = generateCoins(gridCell);
+                        caches.push({ lat, lng, coins, gridCell });
+                    }
                 }
             }
         }
