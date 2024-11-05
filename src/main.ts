@@ -1,11 +1,12 @@
 // main.ts
 
+// Thanks Brace !!!
 document.addEventListener('DOMContentLoaded', () => {
     const appContainer = document.createElement('div');
     appContainer.id = 'app';
     document.body.appendChild(appContainer);
 
-    // Create a heading container
+    // Create a heading container ---------------------------------------------
     const headingContainer = document.createElement('div');
     headingContainer.id = 'heading-container';
     headingContainer.style.backgroundColor = '#4A90E2'; // Blue color
@@ -18,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     title.textContent = 'Geocoin Carrier';
     headingContainer.appendChild(title);
 
-    // Create a control panel within the heading
+    // Create a control panel within the heading ------------------------------
     const controlPanel = document.createElement('div');
     controlPanel.id = 'control-panel';
     headingContainer.appendChild(controlPanel);
@@ -34,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let markers: L.Marker[] = [];
 
+    // reset button, having bugs with deposit coins function - not updating the cache popup
     const resetState = () => {
         clearMarkers(); // Remove all markers from map
         inventory = {};  // Reset inventory
@@ -44,13 +46,14 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('State has been reset');
     };
 
+    // for the toggle tracking button, later implementation
     controlPanel.appendChild(createButton('toggle-tracking', 'Toggle Tracking', () => {
         console.log('Toggling real-time position tracking');
     }));
 
     controlPanel.appendChild(createButton('reset-state', 'Reset State', resetState));
 
-    // Map container
+    // Map container ---------------------------------------------------------
     const mapContainer = document.createElement('div');
     mapContainer.id = 'map-container';
     mapContainer.style.margin = '10px 0';
@@ -64,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     mapElement.style.width = '100%';
     mapContainer.appendChild(mapElement);
 
-    // Inventory container
+    // Inventory container ---------------------------------------------------
     const inventoryContainer = document.createElement('div');
     inventoryContainer.id = 'inventory-container';
     inventoryContainer.style.backgroundColor = '#FFAC45'; // Orange color
@@ -76,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
     inventoryTitle.id = 'inventory-title';
     inventoryContainer.appendChild(inventoryTitle);
 
-    // Map Setup
+    // Map Setup -------------------------------------------------------------
     const latitudeStart = 36.9895;
     const longitudeStart = -122.0628;
     const cellSize = 0.0001;
@@ -89,6 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
+    // random seed generator for caches
     class SeededRandom {
         constructor(private seed: number) {}
         next(): number {
@@ -99,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const randomGen = new SeededRandom(12345);
 
+    // interfaces for coin and caches
     interface Coin {
         type: string;
         count: number;
@@ -112,6 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const coinTypes = ['Copper', 'Silver', 'Gold'];
 
+    // randomly generating coins within caches
     const generateCoins = (): Coin[] => {
         return coinTypes.map(coinType => ({
             type: coinType,
@@ -119,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }));
     };
 
+    // creating a grid of caches
     const createCacheGrid = (center: [number, number]): Cache[] => {
         const caches: Cache[] = [];
         for (let i = -gridSteps; i <= gridSteps; i++) {
@@ -143,6 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tooltipAnchor: [0, -30]
     });
 
+    // inventory and inventory update functions 
     let inventory: { [key: string]: number } = {};
 
     const updateInventoryDisplay = () => {
@@ -161,6 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
         markers = [];
     };
 
+    // setup for caches and markers
     const initializeMarkers = () => {
         const playerMarker = L.marker([latitudeStart, longitudeStart], { icon: playerIcon }).addTo(map)
             .bindTooltip('Player Location', { permanent: true, direction: 'top' });
@@ -216,6 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // saving and loading game state
     const saveGameState = (inventory: { [key: string]: number }, caches: Cache[]) => {
         localStorage.setItem('geocoinGameState', JSON.stringify({ inventory, caches }));
     };
