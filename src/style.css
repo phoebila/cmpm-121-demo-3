@@ -24,6 +24,19 @@ a:hover {
   color: #535bf2;
 }
 
+#direction-panel {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+#direction-panel button {
+  font-size: 1.5em; /* Larger font size for directional buttons */
+  width: 50px; /* Set a fixed width */
+  height: 50px; /* Set a fixed height */
+}
+
+
 body {
   font-family: Arial, sans-serif;
   margin: 0;

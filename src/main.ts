@@ -26,8 +26,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let markers: L.Marker[] = [];
     let inventory: { [key: string]: number } = {};
-    const latitudeStart = 36.9895;
-    const longitudeStart = -122.0628;
+    let latitudeStart = 36.9895;
+    let longitudeStart = -122.0628;
     const cellSize = 0.0001;
     const gridSteps = 8;
     const cacheProbability = 0.1;
@@ -55,6 +55,56 @@ document.addEventListener('DOMContentLoaded', () => {
     const inventoryTitle = document.createElement('h3');
     inventoryTitle.id = 'inventory-title';
     inventoryContainer.appendChild(inventoryTitle);
+
+    // directional setup -----------------------------------
+    // Create directional buttons
+    const createDirectionButton = (direction: string, text: string, onClick: () => void) => {
+        const btn = document.createElement('button');
+        btn.id = `move-${direction}`;
+        btn.textContent = text;
+        btn.style.margin = '5px'; // Keep margin inline for buttons
+        btn.addEventListener('click', onClick);
+        return btn;
+    };
+
+    // Add directional buttons to the control panel
+    const directionPanel = document.createElement('div');
+    directionPanel.id = 'direction-panel';
+    controlPanel.appendChild(directionPanel);
+
+    directionPanel.appendChild(createDirectionButton('north', '⬆️', () => movePlayer(0, 1)));
+    directionPanel.appendChild(createDirectionButton('west', '⬅️', () => movePlayer(-1, 0)));
+    directionPanel.appendChild(createDirectionButton('south', '⬇️', () => movePlayer(0, -1)));
+    directionPanel.appendChild(createDirectionButton('east', '➡️', () => movePlayer(1, 0)));
+
+    const cacheVisibilityRadius = 0.002; // Define a radius for cache visibility (adjust as needed)
+    // Function to clear all existing markers from the map
+    const clearMarkers = () => {
+        markers.forEach(marker => map.removeLayer(marker));
+        markers = [];
+    };
+
+    // Function to regenerate caches based on the player's position
+    const regenerateCaches = () => {
+        // Clear existing markers and caches
+        clearMarkers();
+        caches = createCacheGrid([latitudeStart, longitudeStart]); // Regenerate caches based on new position
+        initializeMarkers(); // Reinitialize markers on the map
+    };
+
+    // Update the movePlayer function to regenerate caches when the player moves
+    const movePlayer = (deltaX: number, deltaY: number) => {
+        latitudeStart += deltaY * cellSize; // Adjust latitude for north/south movement
+        longitudeStart += deltaX * cellSize; // Adjust longitude for east/west movement
+
+        // Update the map's view to the new location
+        map.setView([latitudeStart, longitudeStart], 17);
+
+        // Regenerate caches based on new player position
+        regenerateCaches();
+
+        console.log(`Moved to: ${latitudeStart}, ${longitudeStart}`);
+    };
 
     // Leaflet map setup -----------------------------------
     const map = L.map(mapElement).setView([latitudeStart, longitudeStart], 17);
@@ -120,14 +170,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }));
     };
 
-    // creating the cache grid -----------------------------------
+    // Function to create cache grid based on the player's position
     const createCacheGrid = (center: [number, number]): Cache[] => {
         const caches: Cache[] = [];
         for (let i = -gridSteps; i <= gridSteps; i++) {
             for (let j = -gridSteps; j <= gridSteps; j++) {
-                if (randomGen.next() < cacheProbability) {
-                    const lat = center[0] + (i * cellSize);
-                    const lng = center[1] + (j * cellSize);
+                const lat = center[0] + (i * cellSize);
+                const lng = center[1] + (j * cellSize);
+                // Check if the cache is within the visibility radius
+                const distance = Math.sqrt(Math.pow(lat - latitudeStart, 2) + Math.pow(lng - longitudeStart, 2));
+                if (distance <= cacheVisibilityRadius && randomGen.next() < cacheProbability) {
                     const gridCell = FlyweightFactory.getGridCell(lat, lng);
                     const coins = generateCoins(gridCell);
                     caches.push({ lat, lng, coins, gridCell });
