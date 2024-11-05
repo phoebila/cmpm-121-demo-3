@@ -25,12 +25,15 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Toggling real-time position tracking');
     }));
 
+    let markers: L.Marker[] = [];
+
     const resetState = () => {
-        inventory = 0;
+        inventory = {};
         caches = createCacheGrid([latitudeStart, longitudeStart]);
-        initializeMarkers(); // Reinitialize markers with updated state
-        saveGameState(inventory, caches); // Save state after reset
-        updateInventoryDisplay(inventory);
+        clearMarkers();
+        initializeMarkers();
+        saveGameState(inventory, caches);
+        updateInventoryDisplay();
         console.log('State has been reset');
     };
 
@@ -40,14 +43,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const latitudeStart = 36.9895;
     const longitudeStart = -122.0628;
     const cellSize = 0.0001;
-    const gridSteps = 8; // 8 steps in the grid
-    const cacheProbability = 0.1; // 10% cells will have caches
+    const gridSteps = 8;
+    const cacheProbability = 0.1;
 
     const mapElement = document.createElement('div');
     mapElement.id = 'map';
     mapElement.style.height = '400px';
     mapElement.style.width = '100%';
-    mapElement.style.backgroundColor = '#eaeaea';
     appContainer.appendChild(mapElement);
 
     const map = L.map(mapElement).setView([latitudeStart, longitudeStart], 17);
@@ -57,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }).addTo(map);
 
     class SeededRandom {
-        constructor(private seed: number) { }
+        constructor(private seed: number) {}
         next(): number {
             this.seed = (this.seed * 9301 + 49297) % 233280;
             return this.seed / 233280.0;
@@ -68,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     interface Coin {
         type: string;
-        value: number;
+        count: number;
     }
 
     interface Cache {
@@ -77,17 +79,13 @@ document.addEventListener('DOMContentLoaded', () => {
         coins: Coin[];
     }
 
-    const coinTypes = [
-        { type: 'Copper', value: 1 },
-        { type: 'Silver', value: 5 },
-        { type: 'Gold', value: 10 }
-    ];
+    const coinTypes = ['Copper', 'Silver', 'Gold'];
 
     const generateCoins = (): Coin[] => {
-        const numCoins = Math.floor(randomGen.next() * 3) + 1; // 1 to 3 coins
-        return Array.from({ length: numCoins }, () => {
-            return coinTypes[Math.floor(randomGen.next() * coinTypes.length)];
-        });
+        return coinTypes.map(coinType => ({
+            type: coinType,
+            count: Math.floor(randomGen.next() * 9) + 1
+        }));
     };
 
     const createCacheGrid = (center: [number, number]): Cache[] => {
@@ -107,56 +105,104 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let caches = createCacheGrid([latitudeStart, longitudeStart]);
 
-    const updateInventoryDisplay = (inventory: number) => {
+    const playerIcon = L.icon({
+        iconUrl: 'https://example.com/path-to-player-icon.png',
+        iconSize: [32, 32],  
+        iconAnchor: [16, 32],
+        tooltipAnchor: [0, -30]
+    });
+
+    let inventory: { [key: string]: number } = {};
+
+    const updateInventoryDisplay = () => {
         const inventoryTitle = document.getElementById('inventory-title');
         if (inventoryTitle) {
-            inventoryTitle.textContent = `Inventory: ${inventory} coins`;
+            const content = coinTypes.map(coinType => {
+                const count = inventory[coinType] || 0;
+                return `${coinType}: ${count}`;
+            }).join(', ');
+            inventoryTitle.textContent = `Inventory: ${content}`;
         }
     };
 
-    let inventory = 0;
+    const clearMarkers = () => {
+        markers.forEach(marker => map.removeLayer(marker));
+        markers = [];
+    };
 
     const initializeMarkers = () => {
+        const playerMarker = L.marker([latitudeStart, longitudeStart], { icon: playerIcon }).addTo(map)
+            .bindTooltip('Player Location', { permanent: true, direction: 'top' });
+        
+        markers.push(playerMarker);
+
         caches.forEach((cache, index) => {
             const marker = L.marker([cache.lat, cache.lng]).addTo(map);
+            markers.push(marker);
+
             const updatePopup = () => {
-                const totalCoins = cache.coins.length;
-                let popupContent = `Cache location: ${totalCoins} coins<br>`;
-                if (totalCoins > 0) {
+                const coinDescriptions = cache.coins.map(coin => `${coin.type}: ${coin.count}`).join('<br>');
+                let popupContent = `Cache location:<br>${coinDescriptions ? coinDescriptions : '0 coins'}<br>`;
+                if (cache.coins.length > 0) {
                     popupContent += `<button id="collect-btn-${index}">Collect Coins</button>`;
                 }
+                popupContent += `<button id="deposit-btn-${index}">Deposit Coins</button>`;
                 marker.bindPopup(popupContent);
             };
 
             const collectCoins = () => {
-                const totalCoinValue = cache.coins.reduce((sum, coin) => sum + coin.value, 0);
-                inventory += totalCoinValue;
-                cache.coins = []; // Empty the cache after collection
-                updateInventoryDisplay(inventory);
+                cache.coins.forEach(coin => {
+                    inventory[coin.type] = (inventory[coin.type] || 0) + coin.count;
+                });
+                cache.coins = [];
+                updateInventoryDisplay();
+                updatePopup();
+                saveGameState(inventory, caches);
+            };
+
+            const depositCoins = () => {
+                coinTypes.forEach(coinType => {
+                    const inventoryCount = inventory[coinType] || 0;
+                    if (inventoryCount > 0) {
+                        let cacheCoin = cache.coins.find(coin => coin.type === coinType);
+                        if (!cacheCoin) {
+                            cacheCoin = { type: coinType, count: 0 };
+                            cache.coins.push(cacheCoin);
+                        }
+                        cacheCoin.count += inventoryCount;
+                        inventory[coinType] = 0;
+                    }
+                });
+                updateInventoryDisplay();
                 updatePopup();
                 saveGameState(inventory, caches);
             };
 
             updatePopup();
 
-            map.on("popupopen", function() {
+            map.on("popupopen", () => {
                 document.getElementById(`collect-btn-${index}`)?.addEventListener('click', collectCoins);
+                document.getElementById(`deposit-btn-${index}`)?.addEventListener('click', depositCoins);
             });
         });
     };
 
-    const saveGameState = (inventory: number, caches: Cache[]) => {
+    const saveGameState = (inventory: { [key: string]: number }, caches: Cache[]) => {
         localStorage.setItem('geocoinGameState', JSON.stringify({ inventory, caches }));
     };
 
-    const loadGameState = (): { inventory: number, caches: Cache[] } | null => {
+    const loadGameState = (): { inventory: { [key: string]: number }, caches: Cache[] } | null => {
         const stateJSON = localStorage.getItem('geocoinGameState');
         return stateJSON ? JSON.parse(stateJSON) : null;
     };
 
     const cachedState = loadGameState();
-    inventory = cachedState ? cachedState.inventory : 0;
-    caches = cachedState ? cachedState.caches : createCacheGrid([latitudeStart, longitudeStart]);
+    if (cachedState) {
+        coinTypes.forEach(coinType => {
+            inventory[coinType] = cachedState.inventory[coinType] || 0;
+        });
+        caches = cachedState.caches;
+    }
 
     initializeMarkers();
 
@@ -168,5 +214,5 @@ document.addEventListener('DOMContentLoaded', () => {
     inventoryTitle.id = 'inventory-title';
     inventoryDiv.appendChild(inventoryTitle);
 
-    updateInventoryDisplay(inventory);
+    updateInventoryDisplay();
 });
