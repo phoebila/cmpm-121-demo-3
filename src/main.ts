@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let caches = createCacheGrid([latitudeStart, longitudeStart]);
 
     const playerIcon = L.icon({
-        iconUrl: 'https://example.com/path-to-player-icon.png',
+        iconUrl: './project/pin.png',
         iconSize: [32, 32],  
         iconAnchor: [16, 32],
         tooltipAnchor: [0, -30]
