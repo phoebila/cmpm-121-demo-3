@@ -34,6 +34,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const gridSteps = 8;
     const cacheProbability = 0.1;
 
+    // player pathing -----------------------------------
+    let playerPath: L.LatLng[] = [];
+    let playerPathPolyline: L.Polyline | null = null;
+
     const mapContainer = document.createElement('div');
     mapContainer.id = 'map-container';
     mapContainer.style.margin = '10px 0';
@@ -152,16 +156,45 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     
-    // Update the movePlayer function to regenerate caches when the player moves
+    // Function to update the player’s movement and the polyline
     const movePlayer = (deltaX: number, deltaY: number) => {
+        // Update player's position based on movement deltas
         latitudeStart += deltaY * cellSize;
         longitudeStart += deltaX * cellSize;
-    
-        map.setView([latitudeStart, longitudeStart], map.getZoom()); // Use current zoom level
-        regenerateCaches(); // Regenerate caches and save game state
-    
+
+        // Create a new LatLng object for the updated player position
+        const newPlayerPosition = L.latLng(latitudeStart, longitudeStart);
+
+        // Add the new player position to the path array
+        playerPath.push(newPlayerPosition);
+
+        // Update the map's view with the new coordinates and current zoom level
+        map.setView([latitudeStart, longitudeStart], map.getZoom()); 
+
+        // Regenerate caches based on the player's new position
+        regenerateCaches(); 
+
+        // Redraw the polyline to reflect the updated movement history
+        updatePlayerPath();
+
+        // Log the new position to the console
         console.log(`Moved to: ${latitudeStart}, ${longitudeStart}`);
     };
+
+    // Function to update the player path polyline -----------------------------------
+    function updatePlayerPath() {
+        // Remove the existing polyline
+        if (playerPathPolyline) {
+            playerPathPolyline.remove();
+        }
+    
+        // Add a new polyline to represent the movement history
+        playerPathPolyline = L.polyline(playerPath, {
+            color: 'blue',  // Polyline color
+            weight: 4,      // Line width
+            opacity: 0.6    // Line opacity
+        }).addTo(map);
+    }
 
     // MEMENTO PATTERN -----------------------------------
     class CacheMemento {
