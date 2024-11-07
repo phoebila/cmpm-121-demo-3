@@ -380,7 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let caches = createCacheGrid([latitudeStart, longitudeStart]);
 
     const playerIcon = L.icon({
-        iconUrl: './src/assets/pin.png',
+        iconUrl: '/assets/pin.png',
         iconSize: [32, 32],
         iconAnchor: [16, 32],
         tooltipAnchor: [0, -30]
@@ -447,7 +447,7 @@ const initializeMarkers = () => {
                         : `${coin.type}: ${coin.count} (ID: N/A)`;
 
                     // Dynamically set the image source based on the coin type
-                    const coinImageSrc = `./src/assets/${coin.type.toLowerCase()}.png`; // coin types are 'Copper', 'Silver', 'Gold', etc.
+                    const coinImageSrc = `/assets/${coin.type.toLowerCase()}.png`; // coin types are 'Copper', 'Silver', 'Gold', etc.
                     const coinImage = `<img src="${coinImageSrc}" alt="${coin.type}" style="width: 20px; height: 20px; margin-right: 5px;">`;
 
                     // Return the coin description with the image and button to center on cache
