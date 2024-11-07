@@ -82,6 +82,55 @@ document.addEventListener('DOMContentLoaded', () => {
     directionPanel.appendChild(createDirectionButton('south', '⬇️', () => movePlayer(0, -movementIncrement)));
     directionPanel.appendChild(createDirectionButton('east', '➡️', () => movePlayer(movementIncrement, 0)));
 
+    // part d, geolocation -----------------------------------
+    // Initialize a variable to store the geolocation watch ID
+    let geoWatchId: number | null = null;
+
+    // Function to handle geolocation updates
+    const updatePositionWithGeolocation = (position: GeolocationPosition) => {
+        const { latitude, longitude } = position.coords;
+
+        // Update player's position
+        latitudeStart = latitude;
+        longitudeStart = longitude;
+
+        // Update map view to new geolocation position
+        map.setView([latitude, longitude], 17);
+
+        // Regenerate caches based on new position
+        regenerateCaches();
+        console.log(`Geolocation updated: ${latitude}, ${longitude}`);
+    };
+
+    // Function to toggle geolocation tracking
+    const toggleGeolocation = () => {
+        if (geoWatchId !== null) {
+            // Stop watching geolocation if already enabled
+            navigator.geolocation.clearWatch(geoWatchId);
+            geoWatchId = null;
+            console.log("Geolocation tracking disabled.");
+        } else {
+            // Start watching geolocation
+            if (navigator.geolocation) {
+                geoWatchId = navigator.geolocation.watchPosition(
+                    updatePositionWithGeolocation,
+                    (error) => console.error("Geolocation error:", error),
+                    { enableHighAccuracy: true }
+                );
+                console.log("Geolocation tracking enabled.");
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        }
+    };
+
+    // Create and add the geolocation button to the control panel
+    const geolocationButton = document.createElement('button');
+    geolocationButton.textContent = '🌐';
+    geolocationButton.style.margin = '5px';
+    geolocationButton.addEventListener('click', toggleGeolocation);
+    controlPanel.appendChild(geolocationButton);
+
     const cacheVisibilityRadius = 0.002; // Define a radius for cache visibility (adjust as needed)
     // Function to clear all existing markers from the map
     const clearMarkers = () => {
