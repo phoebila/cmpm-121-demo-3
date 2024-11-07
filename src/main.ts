@@ -96,8 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize a variable to store the geolocation watch ID
     let geoWatchId: number | null = null;
 
-    // Function to handle geolocation updates
-    const updatePositionWithGeolocation = (position: GeolocationPosition) => {
+     // Function to handle geolocation updates
+     const updatePositionWithGeolocation = (position: GeolocationPosition) => {
         const { latitude, longitude } = position.coords;
 
         // Update player's position
@@ -113,8 +113,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(`Geolocation updated: ${latitude}, ${longitude}`);
     };
 
-    // Function to toggle geolocation tracking
-    const toggleGeolocation = () => {
+     // Function to toggle geolocation tracking
+     const toggleGeolocation = () => {
         if (geoWatchId !== null) {
             // Stop watching geolocation if already enabled
             navigator.geolocation.clearWatch(geoWatchId);
@@ -199,8 +199,8 @@ document.addEventListener('DOMContentLoaded', () => {
     resetButton.addEventListener('click', resetGameState);
     controlPanel.appendChild(resetButton);
 
-    // Function to update the player’s movement and the polyline
-    const movePlayer = (deltaX: number, deltaY: number) => {
+     // Function to update the player’s movement and the polyline
+     const movePlayer = (deltaX: number, deltaY: number) => {
         // Update player's position based on movement deltas
         latitudeStart += deltaY * cellSize;
         longitudeStart += deltaX * cellSize;
@@ -388,105 +388,151 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ui for inventory -----------------------------------
     const updateInventoryDisplay = () => {
-        const inventoryTitle = document.getElementById('inventory-title');
-        if (inventoryTitle) {
-            const content = coinTypes.map(coinType => {
-                const count = inventory[coinType] || 0;
-                return `${coinType}: ${count}`;
-            }).join(', ');
-            inventoryTitle.textContent = `Inventory: ${content}`;
+        inventoryTitle.textContent = 'Current Inventory';
+        inventoryContainer.innerHTML = ''; // Clear previous content
+
+        for (const coinType in inventory) {
+            if (inventory.hasOwnProperty(coinType)) {
+                const coinCount = inventory[coinType];
+                const item = document.createElement('div');
+                item.textContent = `${coinType}: ${coinCount}`;
+                inventoryContainer.appendChild(item);
+            }
         }
     };
 
 
     // Initialize markers
-   // main func, initialize markers -----------------------------------
-    const initializeMarkers = () => {
-        // Load the saved player position and caches from localStorage
-        const savedPlayerPosition = localStorage.getItem('playerPosition');
-        if (savedPlayerPosition) {
-            const parsedPosition = JSON.parse(savedPlayerPosition);
-            latitudeStart = parsedPosition.lat;
-            longitudeStart = parsedPosition.lng;
+    // Initialize markers
+// Initialize markers
+const initializeMarkers = () => {
+    // Load the saved player position and caches from localStorage
+    const savedPlayerPosition = localStorage.getItem('playerPosition');
+    if (savedPlayerPosition) {
+        const parsedPosition = JSON.parse(savedPlayerPosition);
+        latitudeStart = parsedPosition.lat;
+        longitudeStart = parsedPosition.lng;
 
-            // Optionally adjust the zoom level here based on saved settings or preferences
-            zoomLevel = parsedPosition.zoom || 13; // Default to 13 if no saved zoom
-        }
-    
-        const savedCaches = localStorage.getItem('caches');
+        zoomLevel = parsedPosition.zoom || 13; // Default to 13 if no saved zoom
+    }
 
-        // Parse the saved data, or fallback to defaults
-        const playerPosition = savedPlayerPosition
-            ? JSON.parse(savedPlayerPosition)
-            : { lat: latitudeStart, lng: longitudeStart }; // Default player position if none found
+    const savedCaches = localStorage.getItem('caches');
+    const playerPosition = savedPlayerPosition
+        ? JSON.parse(savedPlayerPosition)
+        : { lat: latitudeStart, lng: longitudeStart };
 
-        const caches = savedCaches ? JSON.parse(savedCaches) : []; // Empty array if no saved caches
+    const caches = savedCaches ? JSON.parse(savedCaches) : [];
 
-        // Create the player marker at the saved or default position
-        const playerMarker = L.marker([latitudeStart, longitudeStart], { icon: playerIcon }).addTo(map)
+    const playerMarker = L.marker([latitudeStart, longitudeStart], { icon: playerIcon }).addTo(map)
         .bindTooltip('Player Location', { permanent: true, direction: 'top' });
 
-        markers.push(playerMarker);
+    markers.push(playerMarker);
 
-        // Initialize cache markers from saved data
-        caches.forEach((cache, index) => {
-            const marker = L.marker([cache.lat, cache.lng]).addTo(map);
-            markers.push(marker);
+    // Initialize cache markers from saved data
+    caches.forEach((cache, index) => {
+        const marker = L.marker([cache.lat, cache.lng]).addTo(map);
+        markers.push(marker);
 
-            const updatePopup = () => {
-                const gridCell = cache.gridCell; // Use cache.gridCell which is guaranteed to exist
-                if (gridCell) {
-                    const { i, j } = gridCell; // Safely extract i and j
-                    const coinDescriptions = cache.coins.map(coin => {
-                        // Ensure coin.gridCell is valid before accessing its properties
-                        const coinGridCell = coin.gridCell;
-                        return coinGridCell
-                            ? `${coin.type}: ${coin.count} (ID: ${coinGridCell.i}:${coinGridCell.j}#${coin.serial})`
-                            : `${coin.type}: ${coin.count} (ID: N/A)`;
-                    }).join('<br>');
-                    let popupContent = `Cache location:<br>${coinDescriptions ? coinDescriptions : '0 coins'}<br>`;
-                    popupContent += `Grid Cell: {i: ${i}, j: ${j}}<br>`;
-                    popupContent += `<button id="collect-btn-${index}">Collect Coins</button>`;
-                    popupContent += `<button id="deposit-btn-${index}">Deposit Coins</button>`;
-                    marker.bindPopup(popupContent);
-                }
-            };
+        // Function to update the popup content dynamically
+        const updatePopup = () => {
+            const gridCell = cache.gridCell; // Use cache.gridCell which is guaranteed to exist
+            if (gridCell) {
+                const { i, j } = gridCell;
+                const coinDescriptions = cache.coins.map(coin => {
+                    const serial = coin.serial !== undefined && coin.serial !== null ? coin.serial : 'N/A';
+                    const coinGridCell = coin.gridCell;
+                    const coinDescription = coinGridCell
+                        ? `${coin.type}: ${coin.count} (ID: ${coinGridCell.i}:${coinGridCell.j}#${serial})`
+                        : `${coin.type}: ${coin.count} (ID: N/A)`;
 
-            updatePopup();
+                    // Add a button for each coin identifier to center the map on the home cache
+                    return `
+                        <div>
+                            <span class="clickable-coin" data-lat="${cache.lat}" data-lng="${cache.lng}" data-coin-id="${serial}">
+                                ${serial} - ${coinDescription}
+                            </span>
+                            <button class="center-map-btn" data-lat="${cache.lat}" data-lng="${cache.lng}">
+                                Center on Cache
+                            </button>
+                        </div>
+                    `;
+                }).join('<br>');
 
-            marker.on('popupopen', () => {
-                document.getElementById(`collect-btn-${index}`)?.addEventListener('click', () => {
-                    cache.coins.forEach(coin => {
-                        inventory[coin.type] = (inventory[coin.type] || 0) + coin.count;
-                    });
-                    cache.coins = [];
-                    updateInventoryDisplay();
-                    updatePopup();
-                    // Pass the player position and updated caches when calling saveGameState
-                    saveGameState(inventory, caches, playerPosition);
+                let popupContent = `Cache location:<br>${coinDescriptions ? coinDescriptions : '0 coins'}<br>`;
+                popupContent += `Grid Cell: {i: ${i}, j: ${j}}<br>`;
+                popupContent += `<button id="collect-btn-${index}">Collect Coins</button>`;
+                popupContent += `<button id="deposit-btn-${index}">Deposit Coins</button>`;
+                marker.bindPopup(popupContent);
+            }
+        };
+
+        updatePopup();
+
+        marker.on('popupopen', () => {
+            // Collect coins
+            document.getElementById(`collect-btn-${index}`)?.addEventListener('click', () => {
+                cache.coins.forEach(coin => {
+                    inventory[coin.type] = (inventory[coin.type] || 0) + coin.count;
                 });
+                cache.coins = [];
+                updateInventoryDisplay();
+                updatePopup();
+        
+                saveGameState(inventory, caches, playerPosition);
+            });
 
-                document.getElementById(`deposit-btn-${index}`)?.addEventListener('click', () => {
-                    coinTypes.forEach(coinType => {
-                        const inventoryCount = inventory[coinType] || 0;
-                        if (inventoryCount > 0) {
-                            let cacheCoin = cache.coins.find(coin => coin.type === coinType);
-                            if (!cacheCoin) {
-                                cacheCoin = { type: coinType, count: 0, serial: -1, gridCell: cache.gridCell }; // Ensure gridCell is stored
-                                cache.coins.push(cacheCoin);
-                            }
-                            cacheCoin.count += inventoryCount;
-                            inventory[coinType] = 0;
+            // Deposit coins
+            document.getElementById(`deposit-btn-${index}`)?.addEventListener('click', () => {
+                coinTypes.forEach(coinType => {
+                    const inventoryCount = inventory[coinType] || 0;
+                    if (inventoryCount > 0) {
+                        let cacheCoin = cache.coins.find(coin => coin.type === coinType);
+                        if (!cacheCoin) {
+                            cacheCoin = { type: coinType, count: 0, serial: -1, gridCell: cache.gridCell };
+                            cache.coins.push(cacheCoin);
                         }
-                    });
-                    updateInventoryDisplay();
-                    updatePopup();
-                    // Pass the player position and updated caches when calling saveGameState
-                    saveGameState(inventory, caches, playerPosition);
+                        cacheCoin.count += inventoryCount;
+                        inventory[coinType] = 0;
+                    }
+                });
+                updateInventoryDisplay();
+                updatePopup();
+
+                saveGameState(inventory, caches, playerPosition);
+            });
+
+             // Handle clicking a coin identifier to center the map on its home cache
+            const coinElements = document.querySelectorAll('.clickable-coin');
+            coinElements.forEach((coinElement) => {
+                coinElement.addEventListener('click', (e) => {
+                    const target = e.target as HTMLElement;
+                    const lat = parseFloat(target.getAttribute('data-lat')!);
+                    const lng = parseFloat(target.getAttribute('data-lng')!);
+
+                    // Center the map on the cache location
+                    map.setView([lat, lng], map.getZoom()); // Use current zoom level
                 });
             });
         });
-    };
+    });
+};
+
+    map.on('popupopen', () => {
+        const centerMapButtons = document.querySelectorAll('.center-map-btn');
+        centerMapButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                // Type guard: check if e.target is not null and is an HTMLElement
+                const target = e.target as HTMLElement | null;
+                if (target) {
+                    const lat = parseFloat(target.getAttribute('data-lat')!); // Use non-null assertion because we already checked null
+                    const lng = parseFloat(target.getAttribute('data-lng')!);
+
+                    // Center the map on the cache location
+                    map.setView([lat, lng], map.getZoom()); // Use current zoom level
+                }
+            });
+        });
+    });
 
     // save and load game state -----------------------------------
     const saveGameState = (inventory: { [key: string]: number }, caches: Cache[], playerPosition: { lat: number, lng: number }) => {

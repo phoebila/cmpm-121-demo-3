@@ -36,6 +36,14 @@ a:hover {
   height: 50px; /* Set a fixed height */
 }
 
+.clickable-coin {
+  color: blue; /* Make it stand out */
+  cursor: pointer; /* Change the cursor to indicate it's clickable */
+}
+
+.clickable-coin:hover {
+  text-decoration: underline; /* Optional: highlight the coin on hover */
+}
 
 body {
   font-family: Arial, sans-serif;
