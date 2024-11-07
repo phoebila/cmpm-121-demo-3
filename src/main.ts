@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const headingContainer = document.createElement('div');
     headingContainer.id = 'heading-container';
-    headingContainer.style.backgroundColor = '#4A90E2';
+    headingContainer.style.backgroundColor = '#843B62';
     headingContainer.style.color = 'white';
     headingContainer.style.padding = '10px';
     headingContainer.style.textAlign = 'center';
@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const inventoryContainer = document.createElement('div');
     inventoryContainer.id = 'inventory-container';
-    inventoryContainer.style.backgroundColor = '#FFAC45';
+    inventoryContainer.style.backgroundColor = '#0B032D';
     inventoryContainer.style.padding = '10px';
     inventoryContainer.style.color = 'white';
     appContainer.appendChild(inventoryContainer);
@@ -380,7 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let caches = createCacheGrid([latitudeStart, longitudeStart]);
 
     const playerIcon = L.icon({
-        iconUrl: './project/pin.png',
+        iconUrl: './src/assets/pin.png',
         iconSize: [32, 32],
         iconAnchor: [16, 32],
         tooltipAnchor: [0, -30]
@@ -434,6 +434,7 @@ const initializeMarkers = () => {
         markers.push(marker);
 
         // Function to update the popup content dynamically
+        // Function to update the popup content dynamically
         const updatePopup = () => {
             const gridCell = cache.gridCell; // Use cache.gridCell which is guaranteed to exist
             if (gridCell) {
@@ -442,14 +443,18 @@ const initializeMarkers = () => {
                     const serial = coin.serial !== undefined && coin.serial !== null ? coin.serial : 'N/A';
                     const coinGridCell = coin.gridCell;
                     const coinDescription = coinGridCell
-                        ? `${coin.type}: ${coin.count} (ID: ${coinGridCell.i}:${coinGridCell.j}#${serial})`
+                        ? `${coin.count} (ID: ${coinGridCell.i}:${coinGridCell.j}#${serial})`
                         : `${coin.type}: ${coin.count} (ID: N/A)`;
 
-                    // Add a button for each coin identifier to center the map on the home cache
+                    // Dynamically set the image source based on the coin type
+                    const coinImageSrc = `./src/assets/${coin.type.toLowerCase()}.png`; // coin types are 'Copper', 'Silver', 'Gold', etc.
+                    const coinImage = `<img src="${coinImageSrc}" alt="${coin.type}" style="width: 20px; height: 20px; margin-right: 5px;">`;
+
+                    // Return the coin description with the image and button to center on cache
                     return `
                         <div>
                             <span class="clickable-coin" data-lat="${cache.lat}" data-lng="${cache.lng}" data-coin-id="${serial}">
-                                ${serial} - ${coinDescription}
+                                ${coinImage} ${serial} - ${coinDescription}
                             </span>
                             <button class="center-map-btn" data-lat="${cache.lat}" data-lng="${cache.lng}">
                                 Center on Cache
@@ -465,6 +470,7 @@ const initializeMarkers = () => {
                 marker.bindPopup(popupContent);
             }
         };
+
 
         updatePopup();
 
