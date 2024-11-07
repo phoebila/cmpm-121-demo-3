@@ -28,6 +28,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let inventory: { [key: string]: number } = {};
     let latitudeStart = 36.9895;
     let longitudeStart = -122.0628;
+    let playerPosition = { lat: latitudeStart, lng: longitudeStart };
+    let zoomLevel = 150; // Default zoom level
     const cellSize = 0.0001;
     const gridSteps = 8;
     const cacheProbability = 0.1;
@@ -95,7 +97,8 @@ document.addEventListener('DOMContentLoaded', () => {
         longitudeStart = longitude;
 
         // Update map view to new geolocation position
-        map.setView([latitude, longitude], 17);
+        map.setView([latitudeStart, longitudeStart], map.getZoom()); // Use current zoom level
+
 
         // Regenerate caches based on new position
         regenerateCaches();
@@ -139,26 +142,24 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Update the regenerateCaches function to save the states before regenerating
+    // Update regenerateCaches to save player position as well
     const regenerateCaches = () => {
-        saveCacheStates(); // Save the current states of caches before regenerating
+        saveGameState(inventory, caches, { lat: latitudeStart, lng: longitudeStart }); // Save player position
         clearMarkers();
-        caches = createCacheGrid([latitudeStart, longitudeStart]); // Regenerate caches based on new position
-        restoreCacheStates(); // Restore the states of caches
-        initializeMarkers(); // Reinitialize markers on the map
+        caches = createCacheGrid([latitudeStart, longitudeStart]);
+        restoreCacheStates();
+        initializeMarkers();
     };
 
     
     // Update the movePlayer function to regenerate caches when the player moves
     const movePlayer = (deltaX: number, deltaY: number) => {
-        latitudeStart += deltaY * cellSize; // Adjust latitude for north/south movement
-        longitudeStart += deltaX * cellSize; // Adjust longitude for east/west movement
-
-        // Update the map's view to the new location
-        map.setView([latitudeStart, longitudeStart], 17);
-
-        // Regenerate caches based on new player position
-        regenerateCaches();
-
+        latitudeStart += deltaY * cellSize;
+        longitudeStart += deltaX * cellSize;
+    
+        map.setView([latitudeStart, longitudeStart], map.getZoom()); // Use current zoom level
+        regenerateCaches(); // Regenerate caches and save game state
+    
         console.log(`Moved to: ${latitudeStart}, ${longitudeStart}`);
     };
 
@@ -205,10 +206,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Leaflet map setup -----------------------------------
-    const map = L.map(mapElement).setView([latitudeStart, longitudeStart], 17);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+     // Initialize the map with the saved or default player position
+     const map = L.map('map').setView([latitudeStart, longitudeStart], zoomLevel);
+
+     // Add your tile layer (e.g., OpenStreetMap)
+     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     // random seed func for cache and coin generation -----------------------------------
     class SeededRandom {
@@ -320,13 +322,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // main func, initialize markers -----------------------------------
+
+    // Initialize markers
+   // main func, initialize markers -----------------------------------
     const initializeMarkers = () => {
+        // Load the saved player position and caches from localStorage
+        const savedPlayerPosition = localStorage.getItem('playerPosition');
+        if (savedPlayerPosition) {
+            const parsedPosition = JSON.parse(savedPlayerPosition);
+            latitudeStart = parsedPosition.lat;
+            longitudeStart = parsedPosition.lng;
+
+            // Optionally adjust the zoom level here based on saved settings or preferences
+            zoomLevel = parsedPosition.zoom || 13; // Default to 13 if no saved zoom
+        }
+    
+        const savedCaches = localStorage.getItem('caches');
+
+        // Parse the saved data, or fallback to defaults
+        const playerPosition = savedPlayerPosition
+            ? JSON.parse(savedPlayerPosition)
+            : { lat: latitudeStart, lng: longitudeStart }; // Default player position if none found
+
+        const caches = savedCaches ? JSON.parse(savedCaches) : []; // Empty array if no saved caches
+
+        // Create the player marker at the saved or default position
         const playerMarker = L.marker([latitudeStart, longitudeStart], { icon: playerIcon }).addTo(map)
-            .bindTooltip('Player Location', { permanent: true, direction: 'top' });
+        .bindTooltip('Player Location', { permanent: true, direction: 'top' });
 
         markers.push(playerMarker);
 
+        // Initialize cache markers from saved data
         caches.forEach((cache, index) => {
             const marker = L.marker([cache.lat, cache.lng]).addTo(map);
             markers.push(marker);
@@ -360,8 +386,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     cache.coins = [];
                     updateInventoryDisplay();
                     updatePopup();
-                    saveGameState(inventory, caches);
+                    // Pass the player position and updated caches when calling saveGameState
+                    saveGameState(inventory, caches, playerPosition);
                 });
+
                 document.getElementById(`deposit-btn-${index}`)?.addEventListener('click', () => {
                     coinTypes.forEach(coinType => {
                         const inventoryCount = inventory[coinType] || 0;
@@ -377,16 +405,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     updateInventoryDisplay();
                     updatePopup();
-                    saveGameState(inventory, caches);
+                    // Pass the player position and updated caches when calling saveGameState
+                    saveGameState(inventory, caches, playerPosition);
                 });
             });
         });
     };
 
     // save and load game state -----------------------------------
-    const saveGameState = (inventory: { [key: string]: number }, caches: Cache[]) => {
+    const saveGameState = (inventory: { [key: string]: number }, caches: Cache[], playerPosition: { lat: number, lng: number }) => {
         localStorage.setItem('inventory', JSON.stringify(inventory));
         localStorage.setItem('caches', JSON.stringify(caches));
+        localStorage.setItem('playerPosition', JSON.stringify(playerPosition)); // Save player position
     };
 
     const loadGameState = () => {
@@ -409,4 +439,11 @@ document.addEventListener('DOMContentLoaded', () => {
     loadGameState();
     initializeMarkers();
     updateInventoryDisplay();
+
+    // auto saving -----------------------------------
+    setInterval(() => {
+        const playerPosition = { lat: latitudeStart, lng: longitudeStart };
+        saveGameState(inventory, caches, playerPosition);
+        console.log('Game state auto-saved');
+    }, 60000); // Save every 60 seconds
 });
