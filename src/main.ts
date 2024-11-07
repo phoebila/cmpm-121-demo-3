@@ -38,6 +38,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let playerPath: L.LatLng[] = [];
     let playerPathPolyline: L.Polyline | null = null;
 
+    // reset variables -----------------------------------
+    let coins: Coin[] = [];  // List of all coins
+    let homeCaches: Cache[] = [];  // List of caches where coins belong
+
     const mapContainer = document.createElement('div');
     mapContainer.id = 'map-container';
     mapContainer.style.margin = '10px 0';
@@ -155,7 +159,38 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeMarkers();
     };
 
-    
+    //reset game state -----------------------------------
+    const resetGameState = () => {
+        // Reset the player's position to the start coordinates
+        latitudeStart = 36.9895;
+        longitudeStart = -122.0628;
+        playerPath = [];
+        map.setView([latitudeStart, longitudeStart], map.getZoom()); 
+
+        // Clear any markers or paths on the map (if using Leaflet or similar)
+        if (playerPathPolyline) {
+            map.removeLayer(playerPathPolyline);  // Remove any existing path polyline
+        }
+
+        // Return coins to their home caches (remove from inventory)
+        inventory = {};
+
+        // Reset caches to their initial state
+        regenerateCaches();
+
+        // Erase any sensitive location history
+        geoWatchId = null;
+        localStorage.clear(); // Clear local storage to remove location history
+
+        console.log('Game state has been reset.');
+    };
+
+    const resetButton = document.createElement('button');
+    resetButton.textContent = '🚮 Reset';
+    resetButton.style.margin = '5px';
+    resetButton.addEventListener('click', resetGameState);
+    controlPanel.appendChild(resetButton);
+
     // Function to update the player’s movement and the polyline
     const movePlayer = (deltaX: number, deltaY: number) => {
         // Update player's position based on movement deltas
