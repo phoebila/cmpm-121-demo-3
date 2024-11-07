@@ -161,6 +161,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     //reset game state -----------------------------------
     const resetGameState = () => {
+
+        const confirmation = window.confirm("Are you sure you want to erase all progress and reset the game state?");
+    
+        if (!confirmation) {
+            console.log("Game reset canceled by the user.");
+            return; // Exit the function if the user cancels
+        }
+
         // Reset the player's position to the start coordinates
         latitudeStart = 36.9895;
         longitudeStart = -122.0628;
