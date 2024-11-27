@@ -20,7 +20,11 @@ export class MapService {
   private currentLat: number = 36.98949379578401;
   private currentLng: number = -122.06277128548504;
 
-  private playerInventory: { id: string; collected: boolean }[] = [];
+  private playerInventory: {
+    id: string;
+    collected: boolean;
+    home: { i: number; j: number };
+  }[] = [];
   private visibleCaches: Map<string, leaflet.Rectangle> = new Map(); // Track visible cache locations with their markers
 
   // Flyweight Factory to cache grid cells
@@ -89,6 +93,17 @@ export class MapService {
     // Step 4.5: Adding reset button
     const resetButton = document.getElementById("reset")!;
     resetButton.addEventListener("click", () => this.resetGameState());
+    // Add confirmation before resetting
+    resetButton.addEventListener("click", () => {
+      const confirmed = confirm(
+        "Are you sure you want to erase your game state? This action cannot be undone.",
+      );
+      if (confirmed) {
+        this.resetGameState();
+      } else {
+        console.log("Game reset canceled by the user.");
+      }
+    });
 
     // Step 5: Add button listeners for player movement
     this.addButtonListeners();
@@ -272,9 +287,14 @@ export class MapService {
   // Method to restore cache state
   private restoreCacheState(
     cacheKey: string,
-  ): { id: string; collected: boolean }[] {
+  ): { id: string; collected: boolean; home: { i: number; j: number } }[] {
     const memento = this.mementoManager.restoreMemento(cacheKey);
-    return memento ? memento.coins : []; // Return saved coins or an empty array if not found
+    return memento
+      ? memento.coins.map((coin) => ({
+        ...coin,
+        home: this.latLngToGrid(this.currentLat, this.currentLng),
+      }))
+      : []; // Return saved coins with home or an empty array if not found
   }
 
   // Flyweight Factory for creating or reusing grid cells
@@ -354,6 +374,12 @@ export class MapService {
     this.saveGameState(); // Automatic save after movement
   }
 
+  private centerMapOnCache(i: number, j: number) {
+    const { lat, lng } = this.gridToLatLng(i, j); // Convert grid cell to coordinates
+    this.map.setView(leaflet.latLng(lat, lng), this.map.getZoom()); // Center the map at the location
+    console.log(`Centered map on cache at (${i}, ${j})`);
+  }
+
   // Spawn a cache at specific cell coordinates
   // Updated spawnCache method
   private spawnCache(i: number, j: number) {
@@ -375,10 +401,11 @@ export class MapService {
 
     // If no restored state, generate new coins
     const cacheCoins = restoredCoins.length ? restoredCoins : Array.from({
-      length: Math.floor(luck([i, j, "coinCount"].toString()) * 5) + 1,
+      length: Math.floor(luck([i, j, "coinCount"].toString()) * 3) + 1,
     }, (_, k) => ({
       id: `${i}:${j}#${k}`,
       collected: false,
+      home: { i, j }, // Track coin's home cache
     }));
 
     // Save this cache's state
@@ -402,6 +429,19 @@ export class MapService {
       cacheCoins.forEach((coin) => {
         const coinDiv = document.createElement("div");
         coinDiv.textContent = `Coin ${coin.id}`;
+
+        const coinName = document.createElement("span");
+        coinName.textContent = `Coin ${coin.id}`;
+        coinName.style.cursor = "pointer";
+        coinName.style.color = "blue";
+        coinName.style.textDecoration = "underline";
+
+        // Add event listener to pan map to the cache location
+        coinName.addEventListener("click", () => {
+          const { i, j } = coin.home; // Get the coin's home location
+          this.centerMapOnCache(i, j);
+        });
+
         const collectButton = document.createElement("button");
         collectButton.textContent = "Collect";
         const depositButton = document.createElement("button");
@@ -415,7 +455,7 @@ export class MapService {
         collectButton.addEventListener("click", () => {
           if (!coin.collected) {
             coin.collected = true;
-            this.playerInventory.push(coin);
+            this.playerInventory.push({ ...coin, home: { i, j } });
             this.saveGameState();
             collectButton.disabled = true;
             depositButton.disabled = false;
