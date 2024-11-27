@@ -279,7 +279,7 @@ export class MapService {
         const j = playerJ + dj;
 
         // Only spawn cache if a random number is less than the cache spawn probability
-        if (Math.random() < this.CACHE_SPAWN_PROBABILITY) {
+        if (luck([i, j].toString()) < this.CACHE_SPAWN_PROBABILITY) {
           this.spawnCache(i, j);
         }
       }
