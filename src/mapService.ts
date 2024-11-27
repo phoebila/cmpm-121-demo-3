@@ -13,6 +13,8 @@ export class MapService {
   private readonly TILE_DEGREES = 1e-4;
   private readonly CACHE_SPAWN_PROBABILITY = 0.1;
 
+  private playerInventory: { id: string; collected: boolean }[] = [];
+
   constructor(
     elementId: string,
     initialCenter: leaflet.LatLng,
@@ -64,14 +66,17 @@ export class MapService {
     const rect = leaflet.rectangle(bounds);
     rect.addTo(this.map);
 
-    // Generate deterministic cache point value
-    let pointValue = Math.floor(luck([i, j, "initialValue"].toString()) * 100);
-
     // Generate a deterministic number of coins for this cache
     const numCoins = Math.floor(luck([i, j, "coinCount"].toString()) * 5) + 1;
 
-    // Create an array to track collected coins
-    const collectedCoins: boolean[] = Array(numCoins).fill(false);
+    // Cache to track coins
+    const cacheCoins: { id: string; collected: boolean }[] = Array.from(
+      { length: numCoins },
+      (_, k) => ({
+        id: `${i},${j},${k}`, // Unique identifier for each coin
+        collected: false,
+      }),
+    );
 
     // Bind a popup with cache details
     rect.bindPopup(() => {
@@ -79,47 +84,66 @@ export class MapService {
 
       // Cache description
       popupDiv.innerHTML = `
-        <div>There is a cache here at "${i},${j}".</div>
-        <div>Value: <span id="value">${pointValue}</span></div>
+        <div>Cache at "${i},${j}".</div>
         <div>Coins available:</div>
         <div id="coin-list"></div>
-        <button id="poke">Poke Cache</button>
+        <div>
+          Player Inventory: <span id="inventory">${this.playerInventory.length}</span>
+        </div>
       `;
 
       const coinListDiv = popupDiv.querySelector<HTMLDivElement>("#coin-list")!;
 
       // Add coins to the popup
-      for (let k = 0; k < numCoins; k++) {
-        const coinButton = document.createElement("button");
-        coinButton.textContent = `Coin ${k + 1}`;
-        coinButton.disabled = collectedCoins[k]; // Disable if already collected
-        coinButton.addEventListener("click", () => {
-          if (!collectedCoins[k]) {
-            collectedCoins[k] = true;
-            coinButton.disabled = true;
+      cacheCoins.forEach((coin) => {
+        const coinDiv = document.createElement("div");
+        coinDiv.textContent = `Coin ${coin.id}`;
+        const collectButton = document.createElement("button");
+        collectButton.textContent = "Collect";
+        const depositButton = document.createElement("button");
+        depositButton.textContent = "Deposit";
 
-            // Increment player's points
-            this.playerPoints += 1;
+        // Disable buttons as appropriate
+        collectButton.disabled = coin.collected ||
+          this.playerInventory.length >= 5; // Limit inventory to 5
+        depositButton.disabled = !coin.collected &&
+          !this.playerInventory.some((c) => c.id === coin.id);
 
-            alert(
-              `You collected Coin ${k + 1}! Total Points: ${this.playerPoints}`,
-            );
+        // Collect Coin
+        collectButton.addEventListener("click", () => {
+          if (!coin.collected && this.playerInventory.length < 5) {
+            coin.collected = true;
+            this.playerInventory.push(coin);
+            collectButton.disabled = true;
+            depositButton.disabled = false;
+
+            // Update inventory count
+            popupDiv.querySelector<HTMLSpanElement>("#inventory")!.textContent =
+              this.playerInventory.length.toString();
           }
         });
 
-        coinListDiv.appendChild(coinButton);
-      }
+        // Deposit Coin
+        depositButton.addEventListener("click", () => {
+          const coinIndex = this.playerInventory.findIndex((c) =>
+            c.id === coin.id
+          );
+          if (coinIndex !== -1) {
+            this.playerInventory.splice(coinIndex, 1); // Remove coin from inventory
+            coin.collected = false;
+            collectButton.disabled = false;
+            depositButton.disabled = true;
 
-      // "Poke Cache" functionality
-      popupDiv
-        .querySelector<HTMLButtonElement>("#poke")!
-        .addEventListener("click", () => {
-          if (pointValue > 0) {
-            pointValue--;
-            popupDiv.querySelector<HTMLSpanElement>("#value")!.innerHTML =
-              pointValue.toString();
+            // Update inventory count
+            popupDiv.querySelector<HTMLSpanElement>("#inventory")!.textContent =
+              this.playerInventory.length.toString();
           }
         });
+
+        coinDiv.appendChild(collectButton);
+        coinDiv.appendChild(depositButton);
+        coinListDiv.appendChild(coinDiv);
+      });
 
       return popupDiv;
     });
