@@ -1,6 +1,4 @@
 # cmpm-121-demo-3
 
-This is the default `README.md` file for the D3 projects. If the student is
-aware of what's going on in their project, they should immediately replace this
-with something more descriptive. It sure would be embarrassing if they forgot to
-do that...
+## Devlog = [11/26/2024]
+- I had to redo this assignment so I'm currently grinding out all the steps again
