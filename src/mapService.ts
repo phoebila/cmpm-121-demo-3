@@ -11,12 +11,14 @@ export class MapService {
   private playerPoints: number = 0;
 
   private readonly TILE_DEGREES = 1e-4;
-  private readonly CACHE_SPAWN_PROBABILITY = 0.1;
+  private readonly CACHE_SPAWN_PROBABILITY = 0.01;
+  private readonly CACHE_RADIUS = 10; // Radius to control cache visibility
 
   private currentLat: number;
   private currentLng: number;
 
   private playerInventory: { id: string; collected: boolean }[] = [];
+  private visibleCaches: Map<string, leaflet.Rectangle> = new Map(); // Track visible cache locations with their markers
 
   // Flyweight Factory to cache grid cells
   private static gridCellCache: Map<string, { i: number; j: number }> =
@@ -55,6 +57,9 @@ export class MapService {
 
     // Add event listeners for directional movement buttons
     this.addButtonListeners();
+
+    // Explore the neighborhood when initialized
+    this.exploreNeighborhood(this.CACHE_RADIUS);
   }
 
   // Flyweight Factory for creating or reusing grid cells
@@ -84,6 +89,7 @@ export class MapService {
   movePlayerMarker(lat: number, lng: number) {
     this.playerMarker.setLatLng(leaflet.latLng(lat, lng));
     this.map.panTo(leaflet.latLng(lat, lng)); // Optionally pan to the new position
+    this.updateCacheVisibility(); // Update the cache visibility on move
   }
 
   // Add event listeners for movement buttons
@@ -129,6 +135,10 @@ export class MapService {
       [lat, lng],
       [lat + this.TILE_DEGREES, lng + this.TILE_DEGREES],
     ]);
+
+    const cacheKey = `${i}:${j}`;
+
+    if (this.visibleCaches.has(cacheKey)) return; // Prevent duplicate caches
 
     const rect = leaflet.rectangle(bounds);
     rect.addTo(this.map);
@@ -212,6 +222,47 @@ export class MapService {
 
       return popupDiv;
     });
+    this.visibleCaches.set(cacheKey, rect); // Store the cache reference
+  }
+
+  // Update cache visibility and spawn caches in the neighborhood
+  private updateCacheVisibility() {
+    const playerLatLng = this.playerMarker.getLatLng();
+    const { i: playerI, j: playerJ } = this.latLngToGrid(
+      playerLatLng.lat,
+      playerLatLng.lng,
+    );
+
+    // Remove old caches that are too far away
+    const keysToRemove: string[] = [];
+    this.visibleCaches.forEach((cache, key) => {
+      const [i, j] = key.split(":").map(Number);
+      const distance = Math.abs(i - playerI) + Math.abs(j - playerJ);
+      if (distance > this.CACHE_RADIUS) {
+        cache.remove(); // Remove the cache from the map
+        keysToRemove.push(key); // Mark it for removal
+      }
+    });
+
+    // Remove old caches from the visibleCaches map
+    keysToRemove.forEach((key) => this.visibleCaches.delete(key));
+
+    // Explore new caches around the player if within spawn probability
+    for (
+      let i = playerI - this.CACHE_RADIUS;
+      i <= playerI + this.CACHE_RADIUS;
+      i++
+    ) {
+      for (
+        let j = playerJ - this.CACHE_RADIUS;
+        j <= playerJ + this.CACHE_RADIUS;
+        j++
+      ) {
+        if (Math.random() < this.CACHE_SPAWN_PROBABILITY) {
+          this.spawnCache(i, j); // Spawn cache at new position
+        }
+      }
+    }
   }
 
   // Explore the neighborhood for spawning caches
