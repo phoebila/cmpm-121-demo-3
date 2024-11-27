@@ -32,6 +32,9 @@ export class MapService {
   private isTrackingPosition: boolean = false; // Track if position tracking is enabled
   private geoLocationWatchId: number | null = null; // Store geolocation watch ID
 
+  private movementHistory: leaflet.LatLng[] = []; // Track movement history as a list of LatLng
+  private movementPolyline: leaflet.Polyline; // Leaflet Polyline to render movement history
+
   constructor(
     elementId: string,
     initialCenter: leaflet.LatLng,
@@ -55,6 +58,13 @@ export class MapService {
       zoomControl: false,
       scrollWheelZoom: false,
     });
+
+    // Initialize player's movement polyline
+    this.movementPolyline = leaflet.polyline(this.movementHistory, {
+      color: "red", // Path color
+      weight: 3, // Line thickness
+      opacity: 0.7, // Transparency
+    }).addTo(this.map);
 
     // Add tiles to the map
     leaflet
@@ -106,10 +116,24 @@ export class MapService {
           };
         },
       ),
+      movementHistory: this.movementHistory, // Add movement history here
     };
 
     localStorage.setItem("gameState", JSON.stringify(gameState));
     console.log("Game state saved:", gameState);
+  }
+
+  private restoreMovementHistory(
+    gameState: { movementHistory: { lat: number; lng: number }[] },
+  ) {
+    this.movementHistory = (gameState.movementHistory || []).map(
+      (point: { lat: number; lng: number }) =>
+        leaflet.latLng(point.lat, point.lng),
+    );
+
+    if (this.movementPolyline) {
+      this.movementPolyline.setLatLngs(this.movementHistory);
+    }
   }
 
   // Load game state
@@ -124,6 +148,9 @@ export class MapService {
 
       // Restore inventory
       this.playerInventory = gameState.playerInventory || [];
+
+      // Restore movement history
+      this.restoreMovementHistory(gameState);
 
       // Restore visible caches
       gameState.visibleCaches.forEach(
@@ -194,6 +221,13 @@ export class MapService {
     if (this.currentLat !== lat || this.currentLng !== lng) {
       this.currentLat = lat;
       this.currentLng = lng;
+
+      // Add to movement history and update the polyline
+      this.movementHistory.push(
+        leaflet.latLng(this.currentLat, this.currentLng),
+      );
+      this.movementPolyline.setLatLngs(this.movementHistory);
+
       this.movePlayerMarker(lat, lng);
       this.updateCacheVisibility(); // Update caches based on new position
     }
@@ -241,6 +275,13 @@ export class MapService {
 
   // Move the player marker
   movePlayerMarker(lat: number, lng: number) {
+    // Add the new position to the movement history
+    this.movementHistory.push(leaflet.latLng(lat, lng));
+
+    // Update the polyline with the new path
+    this.movementPolyline.setLatLngs(this.movementHistory);
+
+    // Set the player's marker position
     this.playerMarker.setLatLng(leaflet.latLng(lat, lng));
     this.map.panTo(leaflet.latLng(lat, lng)); // Optionally pan to the new position
     this.updateCacheVisibility(); // Update the cache visibility on move
