@@ -45,6 +45,20 @@ export class MapService {
     this.playerMarker.addTo(this.map);
   }
 
+  // Convert latitude and longitude to grid cell indices {i, j}
+  private latLngToGrid(lat: number, lng: number): { i: number; j: number } {
+    const i = Math.floor(lat / this.TILE_DEGREES);
+    const j = Math.floor(lng / this.TILE_DEGREES);
+    return { i, j };
+  }
+
+  // Convert grid cell indices {i, j} to latitude and longitude
+  private gridToLatLng(i: number, j: number): { lat: number; lng: number } {
+    const lat = i * this.TILE_DEGREES;
+    const lng = j * this.TILE_DEGREES;
+    return { lat, lng };
+  }
+
   // Move the player marker
   movePlayerMarker(lat: number, lng: number) {
     this.playerMarker.setLatLng(leaflet.latLng(lat, lng));
@@ -52,15 +66,10 @@ export class MapService {
 
   // Spawn a cache at specific cell coordinates
   private spawnCache(i: number, j: number) {
+    const { lat, lng } = this.gridToLatLng(i, j);
     const bounds = leaflet.latLngBounds([
-      [
-        this.playerMarker.getLatLng().lat + i * this.TILE_DEGREES,
-        this.playerMarker.getLatLng().lng + j * this.TILE_DEGREES,
-      ],
-      [
-        this.playerMarker.getLatLng().lat + (i + 1) * this.TILE_DEGREES,
-        this.playerMarker.getLatLng().lng + (j + 1) * this.TILE_DEGREES,
-      ],
+      [lat, lng],
+      [lat + this.TILE_DEGREES, lng + this.TILE_DEGREES],
     ]);
 
     const rect = leaflet.rectangle(bounds);
@@ -151,9 +160,19 @@ export class MapService {
 
   // Explore the neighborhood for spawning caches
   exploreNeighborhood(size: number) {
-    for (let i = -size; i < size; i++) {
-      for (let j = -size; j < size; j++) {
-        if (luck([i, j].toString()) < this.CACHE_SPAWN_PROBABILITY) {
+    const playerLatLng = this.playerMarker.getLatLng();
+    const { i: playerI, j: playerJ } = this.latLngToGrid(
+      playerLatLng.lat,
+      playerLatLng.lng,
+    );
+
+    for (let di = -size; di <= size; di++) {
+      for (let dj = -size; dj <= size; dj++) {
+        const i = playerI + di;
+        const j = playerJ + dj;
+
+        // Only spawn cache if a random number is less than the cache spawn probability
+        if (Math.random() < this.CACHE_SPAWN_PROBABILITY) {
           this.spawnCache(i, j);
         }
       }
