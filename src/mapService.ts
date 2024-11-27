@@ -17,8 +17,8 @@ export class MapService {
   private readonly CACHE_SPAWN_PROBABILITY = 0.1;
   private readonly CACHE_RADIUS = 10; // Radius to control cache visibility
 
-  private currentLat: number;
-  private currentLng: number;
+  private currentLat: number = 0;
+  private currentLng: number = 0;
 
   private playerInventory: { id: string; collected: boolean }[] = [];
   private visibleCaches: Map<string, leaflet.Rectangle> = new Map(); // Track visible cache locations with their markers
@@ -37,9 +37,18 @@ export class MapService {
     initialCenter: leaflet.LatLng,
     zoomLevel: number,
   ) {
+    // Step 1: Default map center
+    let mapCenter = initialCenter;
+
+    // Step 2: Load the saved state and update mapCenter if a saved position exists
+    const savedStateLoaded = this.loadGameState(); // Sets currentLat and currentLng
+    if (savedStateLoaded) {
+      mapCenter = leaflet.latLng(this.currentLat, this.currentLng); // Overwrite map center with saved position
+    }
+
     // Initialize map
     this.map = leaflet.map(document.getElementById(elementId)!, {
-      center: initialCenter,
+      center: mapCenter, // Use restored position or fallback to initialCenter
       zoom: zoomLevel,
       minZoom: zoomLevel,
       maxZoom: zoomLevel,
@@ -47,7 +56,7 @@ export class MapService {
       scrollWheelZoom: false,
     });
 
-    // Add tiles
+    // Add tiles to the map
     leaflet
       .tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
@@ -56,22 +65,104 @@ export class MapService {
       })
       .addTo(this.map);
 
-    // Initialize player marker
-    this.currentLat = initialCenter.lat;
-    this.currentLng = initialCenter.lng;
-    this.playerMarker = leaflet.marker(initialCenter);
+    // Step 3: Initialize the player's marker
+    this.playerMarker = leaflet.marker(mapCenter); // Align marker with restored map center
     this.playerMarker.bindTooltip("That's you!");
     this.playerMarker.addTo(this.map);
 
-    // Add event listener for the geolocation toggle button (🌐)
+    // Step 4: Add event listener for the geolocation toggle
     const geoButton = document.getElementById("sensor")!;
     geoButton.addEventListener("click", () => this.toggleGeolocationTracking());
 
-    // Add event listeners for directional movement buttons
+    // Step 5: Add button listeners for player movement
     this.addButtonListeners();
 
-    // Explore the neighborhood when initialized
+    // Step 7: Explore the initial neighborhood
     this.exploreNeighborhood(this.CACHE_RADIUS);
+
+    // Step 8: Periodically save game state
+    setInterval(() => this.saveGameState(), 5000);
+  }
+
+  // Save player state and cache states
+  private saveGameState() {
+    const gameState = {
+      playerPosition: {
+        lat: this.currentLat,
+        lng: this.currentLng,
+      },
+      playerInventory: this.playerInventory,
+      visibleCaches: Array.from(this.visibleCaches.entries()).map(
+        ([key, rect]) => {
+          // Save lat/lng of the rectangle bounds
+          const bounds = rect.getBounds(); // Get the LatLngBounds instance
+
+          return {
+            cacheKey: key,
+            bounds: {
+              southWest: bounds.getSouthWest(), // Save SW corner (lat/lng)
+              northEast: bounds.getNorthEast(), // Save NE corner (lat/lng)
+            },
+          };
+        },
+      ),
+    };
+
+    localStorage.setItem("gameState", JSON.stringify(gameState));
+    console.log("Game state saved:", gameState);
+  }
+
+  // Load game state
+  private loadGameState(): boolean {
+    const savedState = localStorage.getItem("gameState");
+    if (savedState) {
+      const gameState = JSON.parse(savedState);
+
+      // Restore player position
+      this.currentLat = gameState.playerPosition.lat;
+      this.currentLng = gameState.playerPosition.lng;
+
+      // Restore inventory
+      this.playerInventory = gameState.playerInventory || [];
+
+      // Restore visible caches
+      gameState.visibleCaches.forEach(
+        (
+          cache: {
+            cacheKey: string;
+            bounds: {
+              southWest: { lat: number; lng: number };
+              northEast: { lat: number; lng: number };
+            };
+          },
+        ) => {
+          if (
+            cache.bounds && cache.bounds.southWest && cache.bounds.northEast
+          ) {
+            const bounds = leaflet.latLngBounds(
+              leaflet.latLng(
+                cache.bounds.southWest.lat,
+                cache.bounds.southWest.lng,
+              ),
+              leaflet.latLng(
+                cache.bounds.northEast.lat,
+                cache.bounds.northEast.lng,
+              ),
+            );
+
+            // Add rectangle to the map and track it
+            const rect = leaflet.rectangle(bounds);
+            this.visibleCaches.set(cache.cacheKey, rect); // Track in memory
+          }
+        },
+      );
+
+      console.log("Game state successfully loaded:", gameState);
+      return true; // State restored successfully
+    }
+
+    console.log("No saved game state found, initializing with defaults.");
+    return false; // No saved state
   }
 
   // Toggle geolocation tracking when 🌐 button is clicked
@@ -153,6 +244,9 @@ export class MapService {
     this.playerMarker.setLatLng(leaflet.latLng(lat, lng));
     this.map.panTo(leaflet.latLng(lat, lng)); // Optionally pan to the new position
     this.updateCacheVisibility(); // Update the cache visibility on move
+
+    // Save the state after moving the player
+    this.saveGameState();
   }
 
   // Add event listeners for movement buttons
@@ -189,6 +283,7 @@ export class MapService {
 
     // Update the player marker's position
     this.movePlayerMarker(this.currentLat, this.currentLng);
+    this.saveGameState(); // Automatic save after movement
   }
 
   // Spawn a cache at specific cell coordinates
@@ -253,6 +348,7 @@ export class MapService {
           if (!coin.collected) {
             coin.collected = true;
             this.playerInventory.push(coin);
+            this.saveGameState();
             collectButton.disabled = true;
             depositButton.disabled = false;
             popupDiv.querySelector<HTMLSpanElement>("#inventory")!.textContent =
@@ -271,6 +367,7 @@ export class MapService {
             depositButton.disabled = true;
             popupDiv.querySelector<HTMLSpanElement>("#inventory")!.textContent =
               this.playerInventory.length.toString();
+            this.saveGameState();
           }
         });
 
