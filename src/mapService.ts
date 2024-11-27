@@ -64,14 +64,53 @@ export class MapService {
     const rect = leaflet.rectangle(bounds);
     rect.addTo(this.map);
 
+    // Generate deterministic cache point value
     let pointValue = Math.floor(luck([i, j, "initialValue"].toString()) * 100);
 
+    // Generate a deterministic number of coins for this cache
+    const numCoins = Math.floor(luck([i, j, "coinCount"].toString()) * 5) + 1;
+
+    // Create an array to track collected coins
+    const collectedCoins: boolean[] = Array(numCoins).fill(false);
+
+    // Bind a popup with cache details
     rect.bindPopup(() => {
       const popupDiv = document.createElement("div");
-      popupDiv.innerHTML = `
-                <div>There is a cache here at "${i},${j}". It has value <span id="value">${pointValue}</span>.</div>
-                <button id="poke">poke</button>`;
 
+      // Cache description
+      popupDiv.innerHTML = `
+        <div>There is a cache here at "${i},${j}".</div>
+        <div>Value: <span id="value">${pointValue}</span></div>
+        <div>Coins available:</div>
+        <div id="coin-list"></div>
+        <button id="poke">Poke Cache</button>
+      `;
+
+      const coinListDiv = popupDiv.querySelector<HTMLDivElement>("#coin-list")!;
+
+      // Add coins to the popup
+      for (let k = 0; k < numCoins; k++) {
+        const coinButton = document.createElement("button");
+        coinButton.textContent = `Coin ${k + 1}`;
+        coinButton.disabled = collectedCoins[k]; // Disable if already collected
+        coinButton.addEventListener("click", () => {
+          if (!collectedCoins[k]) {
+            collectedCoins[k] = true;
+            coinButton.disabled = true;
+
+            // Increment player's points
+            this.playerPoints += 1;
+
+            alert(
+              `You collected Coin ${k + 1}! Total Points: ${this.playerPoints}`,
+            );
+          }
+        });
+
+        coinListDiv.appendChild(coinButton);
+      }
+
+      // "Poke Cache" functionality
       popupDiv
         .querySelector<HTMLButtonElement>("#poke")!
         .addEventListener("click", () => {
