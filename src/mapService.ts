@@ -14,7 +14,7 @@ export class MapService {
   private playerPoints: number = 0;
 
   private readonly TILE_DEGREES = 1e-4;
-  private readonly CACHE_SPAWN_PROBABILITY = 0.01;
+  private readonly CACHE_SPAWN_PROBABILITY = 0.1;
   private readonly CACHE_RADIUS = 10; // Radius to control cache visibility
 
   private currentLat: number;
@@ -28,6 +28,9 @@ export class MapService {
     new Map();
 
   private mementoManager: CacheMementoManager = new CacheMementoManager(); // Manager to handle cache mementos
+
+  private isTrackingPosition: boolean = false; // Track if position tracking is enabled
+  private geoLocationWatchId: number | null = null; // Store geolocation watch ID
 
   constructor(
     elementId: string,
@@ -60,11 +63,49 @@ export class MapService {
     this.playerMarker.bindTooltip("That's you!");
     this.playerMarker.addTo(this.map);
 
+    // Add event listener for the geolocation toggle button (🌐)
+    const geoButton = document.getElementById("sensor")!;
+    geoButton.addEventListener("click", () => this.toggleGeolocationTracking());
+
     // Add event listeners for directional movement buttons
     this.addButtonListeners();
 
     // Explore the neighborhood when initialized
     this.exploreNeighborhood(this.CACHE_RADIUS);
+  }
+
+  // Toggle geolocation tracking when 🌐 button is clicked
+  private toggleGeolocationTracking() {
+    if (this.isTrackingPosition) {
+      // Stop geolocation tracking
+      if (this.geoLocationWatchId !== null) {
+        navigator.geolocation.clearWatch(this.geoLocationWatchId);
+      }
+      this.isTrackingPosition = false;
+      console.log("Geolocation tracking stopped.");
+    } else {
+      // Start geolocation tracking
+      this.geoLocationWatchId = navigator.geolocation.watchPosition(
+        (position) => this.updatePosition(position),
+        (error) => console.error("Geolocation error: ", error),
+        { enableHighAccuracy: true, maximumAge: 1000 },
+      );
+      this.isTrackingPosition = true;
+      console.log("Geolocation tracking started.");
+    }
+  }
+
+  // Update position based on geolocation
+  private updatePosition(position: GeolocationPosition) {
+    const lat = position.coords.latitude;
+    const lng = position.coords.longitude;
+
+    if (this.currentLat !== lat || this.currentLng !== lng) {
+      this.currentLat = lat;
+      this.currentLng = lng;
+      this.movePlayerMarker(lat, lng);
+      this.updateCacheVisibility(); // Update caches based on new position
+    }
   }
 
   // Method to save cache state
