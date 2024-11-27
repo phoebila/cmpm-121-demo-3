@@ -13,6 +13,9 @@ export class MapService {
   private readonly TILE_DEGREES = 1e-4;
   private readonly CACHE_SPAWN_PROBABILITY = 0.1;
 
+  private currentLat: number;
+  private currentLng: number;
+
   private playerInventory: { id: string; collected: boolean }[] = [];
 
   // Flyweight Factory to cache grid cells
@@ -44,9 +47,14 @@ export class MapService {
       .addTo(this.map);
 
     // Initialize player marker
+    this.currentLat = initialCenter.lat;
+    this.currentLng = initialCenter.lng;
     this.playerMarker = leaflet.marker(initialCenter);
     this.playerMarker.bindTooltip("That's you!");
     this.playerMarker.addTo(this.map);
+
+    // Add event listeners for directional movement buttons
+    this.addButtonListeners();
   }
 
   // Flyweight Factory for creating or reusing grid cells
@@ -75,6 +83,43 @@ export class MapService {
   // Move the player marker
   movePlayerMarker(lat: number, lng: number) {
     this.playerMarker.setLatLng(leaflet.latLng(lat, lng));
+    this.map.panTo(leaflet.latLng(lat, lng)); // Optionally pan to the new position
+  }
+
+  // Add event listeners for movement buttons
+  private addButtonListeners() {
+    // Get references to the directional buttons
+    const northButton = document.getElementById("north")!;
+    const southButton = document.getElementById("south")!;
+    const westButton = document.getElementById("west")!;
+    const eastButton = document.getElementById("east")!;
+
+    // Add click event listeners
+    northButton.addEventListener("click", () => this.movePlayer("north"));
+    southButton.addEventListener("click", () => this.movePlayer("south"));
+    westButton.addEventListener("click", () => this.movePlayer("west"));
+    eastButton.addEventListener("click", () => this.movePlayer("east"));
+  }
+
+  // Move the player based on direction
+  private movePlayer(direction: string) {
+    switch (direction) {
+      case "north":
+        this.currentLat += this.TILE_DEGREES; // Move north (increase latitude)
+        break;
+      case "south":
+        this.currentLat -= this.TILE_DEGREES; // Move south (decrease latitude)
+        break;
+      case "west":
+        this.currentLng -= this.TILE_DEGREES; // Move west (decrease longitude)
+        break;
+      case "east":
+        this.currentLng += this.TILE_DEGREES; // Move east (increase longitude)
+        break;
+    }
+
+    // Update the player marker's position
+    this.movePlayerMarker(this.currentLat, this.currentLng);
   }
 
   // Spawn a cache at specific cell coordinates
@@ -126,14 +171,12 @@ export class MapService {
         depositButton.textContent = "Deposit";
 
         // Disable buttons as appropriate
-        collectButton.disabled = coin.collected ||
-          this.playerInventory.length >= 5; // Limit inventory to 5
         depositButton.disabled = !coin.collected &&
           !this.playerInventory.some((c) => c.id === coin.id);
 
         // Collect Coin
         collectButton.addEventListener("click", () => {
-          if (!coin.collected && this.playerInventory.length < 5) {
+          if (!coin.collected) {
             coin.collected = true;
             this.playerInventory.push(coin);
             collectButton.disabled = true;
