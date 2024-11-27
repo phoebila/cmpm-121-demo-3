@@ -184,6 +184,16 @@ export class MapService {
     if (savedState) {
       const gameState = JSON.parse(savedState);
 
+      // Validate gameState structure
+      if (
+        !gameState.playerPosition ||
+        typeof gameState.playerPosition.lat !== "number" ||
+        typeof gameState.playerPosition.lng !== "number"
+      ) {
+        console.error("Invalid game state! Using default values.");
+        return false;
+      }
+
       // Restore player position
       this.currentLat = gameState.playerPosition.lat;
       this.currentLng = gameState.playerPosition.lng;
