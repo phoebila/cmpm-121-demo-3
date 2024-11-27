@@ -91,11 +91,11 @@ export class MapService {
     // Generate a deterministic number of coins for this cache
     const numCoins = Math.floor(luck([i, j, "coinCount"].toString()) * 5) + 1;
 
-    // Cache to track coins
+    // Cache to track coins with unique identities
     const cacheCoins: { id: string; collected: boolean }[] = Array.from(
       { length: numCoins },
       (_, k) => ({
-        id: `${i},${j},#${k}`, // Unique identifier for each coin
+        id: `${i}:${j}#${k}`, // Format as i:j#serial
         collected: false,
       }),
     );
