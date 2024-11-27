@@ -11,4 +11,3 @@ import { MapService } from "./mapService.ts";
 
 const map = new MapService("map");
 map.movePlayerMarker(36.98949379578401, -122.06277128548504);
-// Tunable gameplay parameters

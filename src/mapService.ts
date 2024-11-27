@@ -18,10 +18,27 @@ export class MapService {
       scrollWheelZoom: false,
     });
 
+    this.map.setView([36.98949379578401, -122.06277128548504], 13);
+
+    // add map tiles
+    this.populateTiles();
+
     this.playerMarker = leaflet.marker([0, 0]);
+    this.playerMarker.bindTooltip("That's you!");
+    this.playerMarker.addTo(this.map);
   }
 
   movePlayerMarker(lat: number, lng: number) {
     this.playerMarker.setLatLng(leaflet.latLng(lat, lng));
+  }
+
+  populateTiles() {
+    leaflet
+      .tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution:
+          '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      })
+      .addTo(this.map);
   }
 }
