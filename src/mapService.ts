@@ -15,6 +15,10 @@ export class MapService {
 
   private playerInventory: { id: string; collected: boolean }[] = [];
 
+  // Flyweight Factory to cache grid cells
+  private static gridCellCache: Map<string, { i: number; j: number }> =
+    new Map();
+
   constructor(
     elementId: string,
     initialCenter: leaflet.LatLng,
@@ -45,11 +49,20 @@ export class MapService {
     this.playerMarker.addTo(this.map);
   }
 
+  // Flyweight Factory for creating or reusing grid cells
+  private static getGridCell(i: number, j: number): { i: number; j: number } {
+    const key = `${i},${j}`;
+    if (!MapService.gridCellCache.has(key)) {
+      MapService.gridCellCache.set(key, { i, j });
+    }
+    return MapService.gridCellCache.get(key)!;
+  }
+
   // Convert latitude and longitude to grid cell indices {i, j}
   private latLngToGrid(lat: number, lng: number): { i: number; j: number } {
     const i = Math.floor(lat / this.TILE_DEGREES);
     const j = Math.floor(lng / this.TILE_DEGREES);
-    return { i, j };
+    return MapService.getGridCell(i, j); // Return shared grid cell instance
   }
 
   // Convert grid cell indices {i, j} to latitude and longitude
@@ -82,7 +95,7 @@ export class MapService {
     const cacheCoins: { id: string; collected: boolean }[] = Array.from(
       { length: numCoins },
       (_, k) => ({
-        id: `${i},${j},${k}`, // Unique identifier for each coin
+        id: `${i},${j},#${k}`, // Unique identifier for each coin
         collected: false,
       }),
     );
