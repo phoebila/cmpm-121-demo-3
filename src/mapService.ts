@@ -180,68 +180,112 @@ export class MapService {
 
   // Load game state
   private loadGameState(): boolean {
+    console.log("Loading game state from localStorage...");
+
     const savedState = localStorage.getItem("gameState");
-    if (savedState) {
-      const gameState = JSON.parse(savedState);
-
-      // Validate gameState structure
-      if (
-        !gameState.playerPosition ||
-        typeof gameState.playerPosition.lat !== "number" ||
-        typeof gameState.playerPosition.lng !== "number"
-      ) {
-        console.error("Invalid game state! Using default values.");
-        return false;
-      }
-
-      // Restore player position
-      this.currentLat = gameState.playerPosition.lat;
-      this.currentLng = gameState.playerPosition.lng;
-
-      // Restore inventory
-      this.playerInventory = gameState.playerInventory || [];
-
-      // Restore movement history
-      this.restoreMovementHistory(gameState);
-
-      // Restore visible caches
-      gameState.visibleCaches.forEach(
-        (
-          cache: {
-            cacheKey: string;
-            bounds: {
-              southWest: { lat: number; lng: number };
-              northEast: { lat: number; lng: number };
-            };
-          },
-        ) => {
-          if (
-            cache.bounds && cache.bounds.southWest && cache.bounds.northEast
-          ) {
-            const bounds = leaflet.latLngBounds(
-              leaflet.latLng(
-                cache.bounds.southWest.lat,
-                cache.bounds.southWest.lng,
-              ),
-              leaflet.latLng(
-                cache.bounds.northEast.lat,
-                cache.bounds.northEast.lng,
-              ),
-            );
-
-            // Add rectangle to the map and track it
-            const rect = leaflet.rectangle(bounds);
-            this.visibleCaches.set(cache.cacheKey, rect); // Track in memory
-          }
-        },
+    if (!savedState) {
+      console.warn(
+        "No saved game state found in localStorage. Initializing defaults.",
       );
-
-      console.log("Game state successfully loaded:", gameState);
-      return true; // State restored successfully
+      return false; // No saved state
     }
 
-    console.log("No saved game state found, initializing with defaults.");
-    return false; // No saved state
+    let gameState: {
+      playerPosition: { lat: number; lng: number };
+      playerInventory: {
+        id: string;
+        collected: boolean;
+        home: { i: number; j: number };
+      }[];
+      visibleCaches: {
+        cacheKey: string;
+        bounds: {
+          southWest: { lat: number; lng: number };
+          northEast: { lat: number; lng: number };
+        };
+      }[];
+      movementHistory: { lat: number; lng: number }[];
+    };
+    try {
+      gameState = JSON.parse(savedState);
+    } catch (err) {
+      console.error("Error parsing game state. Resetting state:", err);
+      localStorage.removeItem("gameState"); // Reset if corrupted
+      return false;
+    }
+
+    console.log("Loaded gameState:", gameState);
+
+    if (!gameState.playerPosition) {
+      console.error(
+        "playerPosition is undefined in loaded gameState. Resetting to defaults.",
+      );
+      return false;
+    }
+
+    if (
+      typeof gameState.playerPosition.lat !== "number" ||
+      typeof gameState.playerPosition.lng !== "number"
+    ) {
+      console.error(
+        "playerPosition has invalid structure:",
+        gameState.playerPosition,
+      );
+      return false;
+    }
+
+    // Restore player position
+    this.currentLat = gameState.playerPosition.lat;
+    this.currentLng = gameState.playerPosition.lng;
+
+    // Restore inventory
+    this.playerInventory = gameState.playerInventory || [];
+    console.log("Restored playerInventory:", this.playerInventory);
+
+    // Restore movement history
+    if (Array.isArray(gameState.movementHistory)) {
+      this.restoreMovementHistory(gameState);
+    } else {
+      console.warn("Movement history is invalid or missing.");
+      this.movementHistory = [];
+    }
+
+    // Restore visible caches
+    (gameState.visibleCaches || []).forEach(
+      (
+        cache: {
+          cacheKey: string;
+          bounds: {
+            southWest: { lat: number; lng: number };
+            northEast: { lat: number; lng: number };
+          };
+        },
+      ) => {
+        if (
+          cache && cache.bounds &&
+          cache.bounds.southWest &&
+          cache.bounds.northEast
+        ) {
+          const bounds = leaflet.latLngBounds(
+            leaflet.latLng(
+              cache.bounds.southWest.lat,
+              cache.bounds.southWest.lng,
+            ),
+            leaflet.latLng(
+              cache.bounds.northEast.lat,
+              cache.bounds.northEast.lng,
+            ),
+          );
+          const rect = leaflet.rectangle(bounds);
+          this.visibleCaches.set(cache.cacheKey, rect);
+        } else {
+          console.warn("Skipped malformed cache:", cache);
+        }
+      },
+    );
+
+    console.log("Game state successfully loaded.");
+    return true; // Successfully loaded
   }
 
   // Toggle geolocation tracking when 🌐 button is clicked
