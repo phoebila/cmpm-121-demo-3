@@ -5,6 +5,9 @@ import "./style.css"; // Your custom styles
 import "./leafletWorkaround.ts"; // Fix for missing marker images
 import luck from "./luck.ts"; // Deterministic RNG
 
+import { CacheMemento } from "./CacheMemento.ts";
+import { CacheMementoManager } from "./CacheMementoManager.ts";
+
 export class MapService {
   private map: leaflet.Map;
   private playerMarker: leaflet.Marker;
@@ -23,6 +26,8 @@ export class MapService {
   // Flyweight Factory to cache grid cells
   private static gridCellCache: Map<string, { i: number; j: number }> =
     new Map();
+
+  private mementoManager: CacheMementoManager = new CacheMementoManager(); // Manager to handle cache mementos
 
   constructor(
     elementId: string,
@@ -60,6 +65,23 @@ export class MapService {
 
     // Explore the neighborhood when initialized
     this.exploreNeighborhood(this.CACHE_RADIUS);
+  }
+
+  // Method to save cache state
+  private saveCacheState(
+    cacheKey: string,
+    coins: { id: string; collected: boolean }[],
+  ) {
+    const memento = new CacheMemento(cacheKey, coins);
+    this.mementoManager.saveMemento(cacheKey, memento); // Store the memento
+  }
+
+  // Method to restore cache state
+  private restoreCacheState(
+    cacheKey: string,
+  ): { id: string; collected: boolean }[] {
+    const memento = this.mementoManager.restoreMemento(cacheKey);
+    return memento ? memento.coins : []; // Return saved coins or an empty array if not found
   }
 
   // Flyweight Factory for creating or reusing grid cells
@@ -129,6 +151,7 @@ export class MapService {
   }
 
   // Spawn a cache at specific cell coordinates
+  // Updated spawnCache method
   private spawnCache(i: number, j: number) {
     const { lat, lng } = this.gridToLatLng(i, j);
     const bounds = leaflet.latLngBounds([
@@ -143,35 +166,35 @@ export class MapService {
     const rect = leaflet.rectangle(bounds);
     rect.addTo(this.map);
 
-    // Generate a deterministic number of coins for this cache
-    const numCoins = Math.floor(luck([i, j, "coinCount"].toString()) * 5) + 1;
+    // Try to restore the cache's state (coins collected)
+    const restoredCoins = this.restoreCacheState(cacheKey);
 
-    // Cache to track coins with unique identities
-    const cacheCoins: { id: string; collected: boolean }[] = Array.from(
-      { length: numCoins },
-      (_, k) => ({
-        id: `${i}:${j}#${k}`, // Format as i:j#serial
-        collected: false,
-      }),
-    );
+    // If no restored state, generate new coins
+    const cacheCoins = restoredCoins.length ? restoredCoins : Array.from({
+      length: Math.floor(luck([i, j, "coinCount"].toString()) * 5) + 1,
+    }, (_, k) => ({
+      id: `${i}:${j}#${k}`,
+      collected: false,
+    }));
+
+    // Save this cache's state
+    this.saveCacheState(cacheKey, cacheCoins);
 
     // Bind a popup with cache details
     rect.bindPopup(() => {
       const popupDiv = document.createElement("div");
 
-      // Cache description
       popupDiv.innerHTML = `
-        <div>Cache at "${i},${j}".</div>
-        <div>Coins available:</div>
-        <div id="coin-list"></div>
-        <div>
-          Player Inventory: <span id="inventory">${this.playerInventory.length}</span>
-        </div>
-      `;
+      <div>Cache at "${i},${j}".</div>
+      <div>Coins available:</div>
+      <div id="coin-list"></div>
+      <div>
+        Player Inventory: <span id="inventory">${this.playerInventory.length}</span>
+      </div>
+    `;
 
       const coinListDiv = popupDiv.querySelector<HTMLDivElement>("#coin-list")!;
 
-      // Add coins to the popup
       cacheCoins.forEach((coin) => {
         const coinDiv = document.createElement("div");
         coinDiv.textContent = `Coin ${coin.id}`;
@@ -180,36 +203,31 @@ export class MapService {
         const depositButton = document.createElement("button");
         depositButton.textContent = "Deposit";
 
-        // Disable buttons as appropriate
+        // If the coin is collected, disable the collect button and enable deposit
         depositButton.disabled = !coin.collected &&
           !this.playerInventory.some((c) => c.id === coin.id);
+        collectButton.disabled = coin.collected;
 
-        // Collect Coin
         collectButton.addEventListener("click", () => {
           if (!coin.collected) {
             coin.collected = true;
             this.playerInventory.push(coin);
             collectButton.disabled = true;
             depositButton.disabled = false;
-
-            // Update inventory count
             popupDiv.querySelector<HTMLSpanElement>("#inventory")!.textContent =
               this.playerInventory.length.toString();
           }
         });
 
-        // Deposit Coin
         depositButton.addEventListener("click", () => {
           const coinIndex = this.playerInventory.findIndex((c) =>
             c.id === coin.id
           );
           if (coinIndex !== -1) {
-            this.playerInventory.splice(coinIndex, 1); // Remove coin from inventory
+            this.playerInventory.splice(coinIndex, 1);
             coin.collected = false;
             collectButton.disabled = false;
             depositButton.disabled = true;
-
-            // Update inventory count
             popupDiv.querySelector<HTMLSpanElement>("#inventory")!.textContent =
               this.playerInventory.length.toString();
           }
@@ -222,7 +240,8 @@ export class MapService {
 
       return popupDiv;
     });
-    this.visibleCaches.set(cacheKey, rect); // Store the cache reference
+
+    this.visibleCaches.set(cacheKey, rect);
   }
 
   // Update cache visibility and spawn caches in the neighborhood
@@ -233,21 +252,21 @@ export class MapService {
       playerLatLng.lng,
     );
 
-    // Remove old caches that are too far away
+    // Remove old caches too far away but preserve their state in the memento manager
     const keysToRemove: string[] = [];
     this.visibleCaches.forEach((cache, key) => {
       const [i, j] = key.split(":").map(Number);
       const distance = Math.abs(i - playerI) + Math.abs(j - playerJ);
       if (distance > this.CACHE_RADIUS) {
-        cache.remove(); // Remove the cache from the map
-        keysToRemove.push(key); // Mark it for removal
+        cache.remove(); // Remove visually from the map
+        keysToRemove.push(key);
       }
     });
 
-    // Remove old caches from the visibleCaches map
+    // Clean up the visible cache map after removal
     keysToRemove.forEach((key) => this.visibleCaches.delete(key));
 
-    // Explore new caches around the player if within spawn probability
+    // Re-spawn caches in the neighborhood
     for (
       let i = playerI - this.CACHE_RADIUS;
       i <= playerI + this.CACHE_RADIUS;
@@ -258,8 +277,13 @@ export class MapService {
         j <= playerJ + this.CACHE_RADIUS;
         j++
       ) {
-        if (Math.random() < this.CACHE_SPAWN_PROBABILITY) {
-          this.spawnCache(i, j); // Spawn cache at new position
+        // Check if cache already exists in memory (memento manager) before spawning
+        const cacheKey = `${i}:${j}`;
+        if (
+          !this.visibleCaches.has(cacheKey) &&
+          luck([i, j].toString()) < this.CACHE_SPAWN_PROBABILITY
+        ) {
+          this.spawnCache(i, j); // Spawn new cache if probability meets
         }
       }
     }
