@@ -13,4 +13,9 @@ export class CacheMementoManager {
   restoreMemento(cacheKey: string): CacheMemento | undefined {
     return this.cacheMementos.get(cacheKey);
   }
+
+  // Add this to CacheMementoManager
+  reset() {
+    this.cacheMementos.clear(); // Clear all cached mementos
+  }
 }

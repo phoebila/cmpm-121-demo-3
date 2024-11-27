@@ -17,8 +17,8 @@ export class MapService {
   private readonly CACHE_SPAWN_PROBABILITY = 0.1;
   private readonly CACHE_RADIUS = 10; // Radius to control cache visibility
 
-  private currentLat: number = 0;
-  private currentLng: number = 0;
+  private currentLat: number = 36.98949379578401;
+  private currentLng: number = -122.06277128548504;
 
   private playerInventory: { id: string; collected: boolean }[] = [];
   private visibleCaches: Map<string, leaflet.Rectangle> = new Map(); // Track visible cache locations with their markers
@@ -34,6 +34,8 @@ export class MapService {
 
   private movementHistory: leaflet.LatLng[] = []; // Track movement history as a list of LatLng
   private movementPolyline: leaflet.Polyline; // Leaflet Polyline to render movement history
+
+  private isResetting: boolean = false;
 
   constructor(
     elementId: string,
@@ -84,6 +86,10 @@ export class MapService {
     const geoButton = document.getElementById("sensor")!;
     geoButton.addEventListener("click", () => this.toggleGeolocationTracking());
 
+    // Step 4.5: Adding reset button
+    const resetButton = document.getElementById("reset")!;
+    resetButton.addEventListener("click", () => this.resetGameState());
+
     // Step 5: Add button listeners for player movement
     this.addButtonListeners();
 
@@ -92,6 +98,27 @@ export class MapService {
 
     // Step 8: Periodically save game state
     setInterval(() => this.saveGameState(), 5000);
+  }
+
+  private resetGameState() {
+    this.isResetting = true; // Disable cache spawning during the reset
+
+    // Perform the reset steps
+    this.playerInventory = [];
+    this.mementoManager.reset();
+    this.visibleCaches.forEach((cache) => cache.remove());
+    this.visibleCaches.clear();
+    this.movementHistory = [];
+    if (this.movementPolyline) {
+      this.movementPolyline.setLatLngs([]);
+    }
+    this.currentLat = 36.98949379578401;
+    this.currentLng = -122.06277128548504;
+    this.movePlayerMarker(this.currentLat, this.currentLng);
+    localStorage.removeItem("gameState");
+
+    this.isResetting = false; // Re-enable normal behavior post-reset
+    console.log("Game state reset complete.");
   }
 
   // Save player state and cache states
@@ -425,6 +452,7 @@ export class MapService {
 
   // Update cache visibility and spawn caches in the neighborhood
   private updateCacheVisibility() {
+    if (this.isResetting) return; // Skip cache updates if resetting
     const playerLatLng = this.playerMarker.getLatLng();
     const { i: playerI, j: playerJ } = this.latLngToGrid(
       playerLatLng.lat,
